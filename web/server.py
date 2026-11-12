@@ -28,6 +28,8 @@ INDEX = STATIC / "index.html"
 
 class RunRequest(BaseModel):
     mode: str = Field(pattern="^(recorded|mock|live)$")
+    skills: list[str] | None = None
+    compare_without_matrix: bool = True
 
 
 def create_app(root: Path | None = None) -> FastAPI:
@@ -63,9 +65,12 @@ def create_app(root: Path | None = None) -> FastAPI:
     @app.post("/api/runs")
     def api_start(body: RunRequest) -> dict:
         try:
-            return app.state.runs.start(body.mode)
+            return app.state.runs.start(body.mode, body.skills, body.compare_without_matrix)
         except RunBusy as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=409,
+                detail={"message": str(exc), "run": exc.run},
+            ) from exc
         except DemoRunError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 

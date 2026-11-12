@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import threading
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -12,7 +13,16 @@ import pytest
 
 from demo.mock_model import MODEL_NAME, Handler, choose_action, decide_from_skill_text
 from demo.report import TRACE_CASE, write_report
-from demo.skill_sets import SHARED_SKILLS, sync_without_priority_matrix
+from demo.runner import LOG_STALL_SECONDS, READY_WITHOUT_VENVS_SECONDS, READY_WITH_VENVS_SECONDS
+from demo.skill_sets import (
+    SKILLS,
+    SHARED_SKILLS,
+    UnknownSkill,
+    materialize,
+    run_plan,
+    selection_config,
+    sync_without_priority_matrix,
+)
 from nemo_gym.skills import hash_skill_dir, load_skill_directory, parse_skill_md
 from resources_servers.ticketnow_desk import policy
 from responses_api_agents.desk_skills_agent.skills_runtime import (
@@ -275,6 +285,35 @@ def test_missing_skill_variant_is_the_full_set_without_the_priority_matrix() -> 
         assert (synced / name / "SKILL.md").read_bytes() == (ROOT / "skills/full" / name / "SKILL.md").read_bytes()
     loaded = load_skill_directory("skills/without_priority_matrix")
     assert {item.name for item in loaded.skills} == set(SHARED_SKILLS)
+
+
+def test_a_run_can_score_every_leave_one_out(tmp_path: Path) -> None:
+    shutil.copytree(ROOT / "skills" / "full", tmp_path / "skills" / "full")
+    names = [name for name, _title in SKILLS]
+    assert [item["id"] for item in run_plan()] == [
+        "no_skills",
+        "full_skills",
+        "without_priority_matrix",
+    ]
+    full = selection_config(names)
+    stamped = (tmp_path / "skills" / "full" / "priority-matrix" / "SKILL.md").read_bytes()
+    assert materialize(tmp_path, full) == tmp_path / "skills" / "full"
+    assert (tmp_path / "skills" / "full" / "priority-matrix" / "SKILL.md").read_bytes() == stamped
+    without_access = selection_config([name for name in names if name != "access-request-policy"])
+    assert without_access["id"] == "without_access_request_policy"
+    assert without_access["label"] == "Without the access policy"
+    dest = materialize(tmp_path, without_access)
+    assert dest is not None
+    assert not (dest / "access-request-policy").exists()
+    assert (dest / "priority-matrix" / "SKILL.md").read_bytes() == stamped
+    custom = selection_config(["security-first-response", "priority-matrix"])
+    assert custom["id"] == "selected"
+    assert custom["path"] == "skills/selected"
+    assert READY_WITH_VENVS_SECONDS == 180
+    assert READY_WITHOUT_VENVS_SECONDS == 300
+    assert LOG_STALL_SECONDS == 90
+    with pytest.raises(UnknownSkill, match="not-a-playbook"):
+        selection_config(["not-a-playbook"])
 
 
 def test_staging_activation_and_path_traversal(tmp_path: Path) -> None:

@@ -10,7 +10,7 @@ Open the briefing page if you are presenting without a terminal. It loads the re
 
 Then open http://127.0.0.1:43123. `make ui` is the same command. The page listens on `$PORT` when that variable is set, which is what Railway does.
 
-The first time you run the terminal demo, NeMo Gym builds a virtualenv for each server. That can take several minutes. After that, the three evaluations themselves are short. If you are about to walk into the room and the servers are still installing, stay on Recorded sample in the briefing page, or open [sample_run/comparison.md](sample_run/comparison.md). That folder is a recorded mock run, labeled as such.
+The container image already contains the server virtualenvs, so Mock model and Live model on Railway do not spend the first start installing them. A checkout on a laptop still builds those virtualenvs the first time `./run_demo.sh` runs, and that can take several minutes. If you are about to walk into the room, stay on Recorded sample, or open [sample_run/comparison.md](sample_run/comparison.md). That folder is a recorded mock run, labeled as such.
 
 The Railway service name is unchanged. This repository changes the desk the service presents.
 
@@ -88,8 +88,8 @@ On the recorded mock run the means are:
 | Configuration | Mean reward | Correct decisions |
 | --- | --- | --- |
 | No skills | 0.40 | 0 / 12 |
-| Full skills | 1.00 | 12 / 12 |
-| Priority matrix removed | 0.50 | 2 / 12 |
+| All four skills | 1.00 | 12 / 12 |
+| Without the priority matrix | 0.50 | 2 / 12 |
 
 The two that still pass without the matrix are the phishing click and the lost laptop. That playbook already names P1 and the security queue. Every other ticket keeps the lookup credit and misses the priority.
 
@@ -143,7 +143,7 @@ The script writes `env.yaml` from the environment. That file holds the API key, 
 2. Regenerates the task JSONL and the missing-skill directory.
 3. Runs the unit tests.
 4. Starts the mock on port 43117 when no API key is set, or uses your endpoint.
-5. Starts the head server, the resources server, the desk agent, the model server, and the environment-server relay. The first start installs a virtualenv per server under `.gym_venvs/`.
+5. Starts the head server, the resources server, the desk agent, the model server, and the environment-server relay. The first start on a laptop installs a virtualenv per server under `.gym_venvs/`. The container image already has those virtualenvs.
 6. Waits until `http://127.0.0.1:11000/readyz` returns success.
 7. Runs the twelve tickets three times and writes `results/`.
 8. Prints the comparison table and a trace of the Friday offboarding episode.
@@ -162,13 +162,14 @@ The script writes `env.yaml` from the environment. That file holds the API key, 
 
 `./run_ui.sh` serves one page from the same repository. Nothing in the browser asks for an API key.
 
-The page has three parts:
+The page has four parts:
 
 1. The four skills, which you can open, including the priority matrix.
-2. The twelve tickets, with the handoff the lead sees and the outcome the policy requires.
-3. **Run demo**, which scores the tickets three times and draws the comparison. While a Gym run is in progress the page shows which step it is on. Under the scores, pick a ticket and step through the episode: skill opened, matrix read, requester and ticket looked up, triage filed, reward.
+2. Checkboxes for the playbooks to score. They stay on screen in Recorded, Mock, and Live. A run with no playbooks is always scored beside the ones you leave checked. "Also show these tickets with the priority matrix removed" stays on unless you turn it off. Recorded sample only contains no skills, all four skills, and without the priority matrix. Any other mix asks you to run Mock or Live.
+3. **Run demo**, which scores that selection. While a Gym run is in progress the page shows the step and the latest Gym log. If a run is already going, the page attaches to it and says so instead of failing the click.
+4. **Walk the ticket.** Pick a ticket from the cards. Each card has the title, an Incident, Request, or Inquiry badge, and a category icon. Then move through five steps with Next, Back, or the arrow keys: Employee request, Skills loaded, Agent decision, Reward check, and Score. The decision and the score put "without skills" beside the playbooks you checked, with a Pass or Miss on each part of the filing. Tool output stays behind "Show technical details".
 
-Screenshots of that page are in [docs/screenshots/](docs/screenshots/).
+Screenshots of that page are in [docs/screenshots/](docs/screenshots/). The walk is `walk-request.png`, `walk-decision.png`, and `walk-score.png`. The playbook checkboxes are `skill-picker.png`.
 
 The mode selector has three settings:
 
@@ -196,15 +197,15 @@ The page itself does not carry speaker notes. Use this if you are narrating.
 
 **Scores.** "Without the playbooks the lead still looks up the requester and the ticket, so each ticket keeps 0.4, and every decision is wrong. With the skills, every ticket matches. Reward is 1. Take only the priority matrix away and the two security incidents still pass. The other ten fail. Mean reward is 0.50."
 
-**Trace.** Open the Friday offboard on Full skills and press Next. "The lead opens security first, opens classification, opens the access policy, reads the matrix, looks up the employee, and files a P2 lifecycle triage with same-day disable. The verifier agrees. The skills hash is Gym's record of which files were on the run."
+**Walk.** Open the Friday offboard card. Step through Employee request, Skills loaded, Agent decision, Reward check, and Score. On the decision and the score, the left column had no playbooks and the right column had all four. Green Pass and red Miss sit on each part of the filing. "The lead looks the employee and the ticket up, reads the matrix, and files a P2 lifecycle triage with same-day disable. The verifier agrees. Show technical details if someone asks for the tool list or the skills hash."
 
 **Close.** "To change the policy, edit the skill and the verifier together. The tickets stay the same, so the comparison stays fair."
 
 ## Deploy to Railway
 
-The container is one service. It binds `0.0.0.0:$PORT` (Railway sets `PORT`; the image default is 8080), serves the briefing page, and answers `GET /health`. `railway.json` sets the start command to `python -m web` and the health check path to `/health`. The Railway service name is left as it is. With no environment variables, Recorded sample works immediately. Mock model works too: the first run installs NeMo Gym's server virtualenvs, which needs outbound network and a few minutes. Later runs reuse them. Live model turns on only when the variables below are set on the service.
+The container is one service. It binds `0.0.0.0:$PORT` (Railway sets `PORT`; the image default is 8080), serves the briefing page, and answers `GET /health`. `railway.json` sets the start command to `python -m web` and the health check path to `/health`. The Railway service name is left as it is. With no environment variables, Recorded sample works immediately. Mock model and Live model start NeMo Gym against virtualenvs that the image build already installed, for both `vllm_model` and `openai_model`. Live model turns on only when the variables below are set on the service.
 
-Those server virtualenvs are not baked into the image. Prebuilding them copied Ray and the model server's dev extra and made the image too large for a typical Railway deploy. Recorded sample does not start Ray or install anything.
+Recorded sample does not start Ray. If Gym stops printing before it is ready, or it is not ready within three minutes when the virtualenvs are present, the page shows the error and the log tail instead of spinning. A second click while a run is going attaches to that run.
 
 Give the service at least 2 GB of memory before you use Mock model or Live model. Ray starts with those modes. If Ray cannot stay up, the page says so and Recorded sample still loads.
 
@@ -236,12 +237,12 @@ Set variables in the Railway service settings, not in the browser. Leave them em
 | `POLICY_API_KEY` | Secret for the endpoint. Empty, or a placeholder such as `changeme`, keeps Live model off. |
 | `POLICY_BASE_URL` | For the live desk: `https://api.openai.com/v1`. For the NVIDIA API catalog: `https://integrate.api.nvidia.com/v1`. |
 | `POLICY_MODEL_NAME` | For the live desk: `gpt-4.1-mini`. `POLICY_MODEL` is accepted as an alias. |
-| `POLICY_MODEL_TYPE` | `openai_model` for OpenAI's Responses API, which is what `gpt-4.1-mini` uses. `vllm_model` for chat-completions hosts, including NVIDIA's catalog. The first run of either type installs that adapter's virtualenv and needs network access in the container. |
+| `POLICY_MODEL_TYPE` | `openai_model` for OpenAI's Responses API, which is what `gpt-4.1-mini` uses. `vllm_model` for chat-completions hosts, including NVIDIA's catalog. Both adapters' virtualenvs are already in the image. |
 | `POLICY_REASONING_PARSER` | Leave unset. Set `true` only for a reasoning model behind `vllm_model`. |
 | `DEMO_TEMPERATURE` | Optional. Defaults to `0`. |
 | `PORT` | Railway sets this. The process binds to it. |
 
-A build of this Dockerfile is about 1.8 GB. The per-server virtualenvs are created on the first Mock model or Live model run, not in the image.
+The image includes the parent virtualenv and the per-server virtualenvs. They share files with hardlinks. A local build of this Dockerfile measured 1.4 GB. The build deletes the dummy `env.yaml` it used to prefetch, so no key is in the image.
 
 A local image of the same container:
 
@@ -289,11 +290,11 @@ A live run with your key writes `results/` and does not overwrite `sample_run/`.
 - `openai_model` talks to the Responses API. Most "OpenAI-compatible" hosts, including the NVIDIA integrate endpoint, only implement chat completions. Use `POLICY_MODEL_TYPE=vllm_model` for those. `vllm_model` defaults `uses_reasoning_parser` to true, which can rewrite ordinary chat output. The demo turns that off unless `POLICY_REASONING_PARSER=true`.
 - A relative `+skills.path` is resolved from the agent process's working directory, then from `NEMO_GYM_EXTRA_ROOTS`. A wheel install does not set that variable for you. The demo exports the repo root.
 - Gym 0.7.0 will not accept `+skills.path` on a materialized task row. These tasks are flat `responses_create_params` rows for that reason.
-- The first `gym env start` installs server virtualenvs, including NeMo Gym's dev extra for the built-in model server. Later runs reuse `.gym_venvs/`.
+- On a laptop, the first `gym env start` installs server virtualenvs. Later runs, and the container image, reuse `.gym_venvs/`. The page waits up to three minutes when those virtualenvs are already present, and up to five minutes when they are not. A prepared image that stops printing for 90 seconds is reported as failed, with the log tail on the page.
 - The mock is deterministic and only correct because it parses the skill files. A real model can ignore a skill, misread the matrix, or fail a tool call. That is the measurement you want from a live key, and it will not match the mock table.
 - Temperature defaults to 0. Some endpoints reject that. `gpt-4.1-mini` accepts 0. Set `DEMO_TEMPERATURE` in `.env` if yours does not.
 - Rewards grade the filed triage, not the prose of the employee message. The grader accepts a different capitalization and a different action order. It does not accept a different code.
 - The briefing page and `./run_demo.sh` both collect through port 11000. Run one of them at a time.
 - Mock model and Live model start Ray inside the same machine as the page. The container limits Ray's object store so a modest service can boot. If Ray still cannot start, the page says so. Recorded sample does not start Ray, and it stays available.
-- The image ships the `gym` command and the recorded sample. It does not ship the per-server virtualenvs. The first Mock model or Live model run in a fresh container installs them and needs network access. `vllm_model` and `openai_model` each install their own adapter virtualenv.
+- The image ships the `gym` command, the recorded sample, and the per-server virtualenvs for `vllm_model` and `openai_model`. A fresh container does not need network access to install them.
 - Live model reads `POLICY_API_KEY` from the server environment. The page has no field for a key.

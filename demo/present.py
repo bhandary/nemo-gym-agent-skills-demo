@@ -11,12 +11,16 @@ from pathlib import Path
 from typing import Any
 
 from demo.report import VARIANTS, _case_for, _grade, _index, _load
-from demo.story import outcome_line, ticket_title
-from resources_servers.ticketnow_desk.policy import CASES
+from demo.story import ACTION_PLAIN, CATEGORY_PLAIN, GROUP_PLAIN, TYPE_PLAIN, outcome_line, ticket_title
+from resources_servers.ticketnow_desk.policy import CASES, normalize_actions
 
 
-def load_by_variant(results: Path) -> dict[str, dict[str, dict[str, Any]]]:
-    return {key: _index(_load(results / f"{key}.jsonl")) for key, _label in VARIANTS}
+def load_by_variant(
+    results: Path,
+    variants: tuple[tuple[str, str], ...] | None = None,
+) -> dict[str, dict[str, dict[str, Any]]]:
+    chosen = variants or VARIANTS
+    return {key: _index(_load(results / f"{key}.jsonl")) for key, _label in chosen}
 
 
 def _plain_cell(procedure: float, decision: float) -> str:
@@ -35,13 +39,17 @@ def _mean(values: list[float]) -> float | None:
     return float(f"{sum(values) / len(values):.2f}")
 
 
-def comparison_payload(by_variant: dict[str, dict[str, dict[str, Any]]]) -> dict[str, Any]:
+def comparison_payload(
+    by_variant: dict[str, dict[str, dict[str, Any]]],
+    variants: tuple[tuple[str, str], ...] | None = None,
+) -> dict[str, Any]:
+    chosen = variants or VARIANTS
     tickets = []
-    means: dict[str, list[float]] = {key: [] for key, _label in VARIANTS}
-    passes = {key: 0 for key, _label in VARIANTS}
+    means: dict[str, list[float]] = {key: [] for key, _label in chosen}
+    passes = {key: 0 for key, _label in chosen}
     for case in CASES:
         cells = []
-        for key, label in VARIANTS:
+        for key, label in chosen:
             row = by_variant[key].get(case["case_id"])
             if row is None:
                 cells.append({"variant": key, "label": label, "missing": True})
@@ -72,7 +80,7 @@ def comparison_payload(by_variant: dict[str, dict[str, dict[str, Any]]]) -> dict
             }
         )
     summary = []
-    for key, label in VARIANTS:
+    for key, label in chosen:
         summary.append(
             {
                 "variant": key,
@@ -171,6 +179,75 @@ def _describe_return(name: str, output: Any) -> str:
     if isinstance(output, str):
         return _excerpt(output)
     return _excerpt(json.dumps(output, ensure_ascii=False))
+
+
+def _pretty(table: dict[str, str], value: Any) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return "Not filed"
+    folded = raw.casefold()
+    for key, label in table.items():
+        if key.casefold() == folded or label.casefold() == folded:
+            return label
+    return raw
+
+
+def _pretty_actions(value: Any) -> str:
+    codes = normalize_actions(value)
+    if not codes:
+        return "Not filed"
+    return ", ".join(ACTION_PLAIN.get(code, code.replace("_", " ")) for code in codes)
+
+
+def _rubric(graded: Any, filed: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """One row per check the reward function makes, in plain language."""
+    filed = filed or {}
+    expected = graded.expected
+    expected_actions = ", ".join(ACTION_PLAIN.get(code, code.replace("_", " ")) for code in expected.actions)
+    filed_actions = _pretty_actions(filed.get("actions"))
+    rows = [
+        (
+            "Looked up the employee and the ticket before filing",
+            "Both lookups happen first",
+            "Both lookups happened first" if graded.procedure == 1.0 else "A lookup was skipped or came after the filing",
+            graded.procedure == 1.0,
+        ),
+        (
+            "Ticket type",
+            TYPE_PLAIN.get(expected.ticket_type, expected.ticket_type),
+            _pretty(TYPE_PLAIN, filed.get("ticket_type")),
+            _pretty(TYPE_PLAIN, filed.get("ticket_type")) == TYPE_PLAIN.get(expected.ticket_type, expected.ticket_type),
+        ),
+        (
+            "Category",
+            CATEGORY_PLAIN.get(expected.category, expected.category),
+            _pretty(CATEGORY_PLAIN, filed.get("category")),
+            _pretty(CATEGORY_PLAIN, filed.get("category")) == CATEGORY_PLAIN.get(expected.category, expected.category),
+        ),
+        (
+            "Priority",
+            expected.priority,
+            str(filed.get("priority") or "Not filed").strip() or "Not filed",
+            str(filed.get("priority") or "").strip().casefold() == expected.priority.casefold(),
+        ),
+        (
+            "Routing group",
+            GROUP_PLAIN.get(expected.assignment_group, expected.assignment_group),
+            _pretty(GROUP_PLAIN, filed.get("assignment_group")),
+            _pretty(GROUP_PLAIN, filed.get("assignment_group"))
+            == GROUP_PLAIN.get(expected.assignment_group, expected.assignment_group),
+        ),
+        (
+            "Actions",
+            expected_actions or "None",
+            filed_actions,
+            normalize_actions(filed.get("actions")) == tuple(expected.actions),
+        ),
+    ]
+    return [
+        {"label": label, "expected": expect, "filed": got, "passed": bool(passed)}
+        for label, expect, got, passed in rows
+    ]
 
 
 def _filed_triage(output: list[Any]) -> dict[str, Any] | None:
@@ -277,6 +354,7 @@ def trace_payload(row: dict[str, Any]) -> dict[str, Any]:
                 "filed_priority": None if filed is None else filed.get("priority"),
                 "filed_assignment_group": None if filed is None else filed.get("assignment_group"),
                 "filed_actions": None if filed is None else filed.get("actions"),
+                "checks": _rubric(graded, filed),
             },
         }
     )
@@ -301,17 +379,23 @@ def build_view(
     model: str,
     nemo_gym: str,
     endpoint_host: str = "",
+    variants: tuple[tuple[str, str], ...] | None = None,
 ) -> dict[str, Any]:
-    by_variant = load_by_variant(results)
+    chosen = variants or VARIANTS
+    by_variant = load_by_variant(results, chosen)
     traces: dict[str, dict[str, Any]] = {}
     for case in CASES:
         traces[case["case_id"]] = {}
-        for key, _label in VARIANTS:
+        for key, _label in chosen:
             row = by_variant[key].get(case["case_id"])
             if row is not None:
                 traces[case["case_id"]][key] = trace_payload(row)
     rollout_model = ""
-    first = next(iter(by_variant["full_skills"].values()), None)
+    preferred = by_variant.get("full_skills") or next(
+        (rows for key, rows in by_variant.items() if key != "no_skills"),
+        next(iter(by_variant.values()), {}),
+    )
+    first = next(iter(preferred.values()), None) if preferred else None
     if first:
         recorded = (first.get("response") or {}).get("model")
         if isinstance(recorded, str):
@@ -324,8 +408,8 @@ def build_view(
         "rollout_model": rollout_model,
         "nemo_gym": nemo_gym,
         "endpoint_host": endpoint_host,
-        "variants": [{"id": key, "label": label} for key, label in VARIANTS],
-        "comparison": comparison_payload(by_variant),
+        "variants": [{"id": key, "label": label} for key, label in chosen],
+        "comparison": comparison_payload(by_variant, chosen),
         "traces": traces,
     }
 

@@ -4,6 +4,10 @@ cache/
 env.yaml
 .env
 results/
+skills/selected/
+skills/without_security_first_response/
+skills/without_ticket_classification/
+skills/without_access_request_policy/
 outputs/
 agent-tools/
 __pycache__/

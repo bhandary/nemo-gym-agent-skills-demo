@@ -21,25 +21,24 @@ import yaml
 from demo.present import build_view
 from demo.report import write_report
 from demo.settings import ModelSettings, model_settings, nemo_gym_version
-from demo.skill_sets import sync_without_priority_matrix
+from demo.skill_sets import materialize, run_plan
 from resources_servers.ticketnow_desk.policy import CASES, render_tasks_jsonl
 
 
 StepCallback = Callable[[str, str, str], None]
+LogCallback = Callable[[str], None]
 
 MOCK_PORT = 43117
 GYM_PORT = 11000
 READY_URL = f"http://127.0.0.1:{GYM_PORT}/readyz"
 MOCK_URL = f"http://127.0.0.1:{MOCK_PORT}/v1/models"
+READY_WITH_VENVS_SECONDS = 180
+READY_WITHOUT_VENVS_SECONDS = 300
+LOG_STALL_SECONDS = 90
 
-VARIANTS = (
-    ("no_skills", "Score the tickets with no skills", []),
-    ("full_skills", "Score the tickets with all four skills", ["+skills.path=skills/full"]),
-    (
-        "without_priority_matrix",
-        "Score the tickets with the priority matrix removed",
-        ["+skills.path=skills/without_priority_matrix"],
-    ),
+VARIANTS = tuple(
+    (item["id"], f"Score the tickets: {item['label']}", [f"+skills.path={item['path']}"] if item["path"] else [])
+    for item in run_plan()
 )
 
 
@@ -196,7 +195,7 @@ def _child_env(root: Path, policy: Mapping[str, str]) -> dict[str, str]:
     return env
 
 
-def _venvs_ready(root: Path, model_type: str) -> bool:
+def venvs_ready(root: Path, model_type: str) -> bool:
     model_dir = "vllm_model" if model_type == "vllm_model" else "openai_model"
     needed = [
         root / ".gym_venvs/resources_servers/ticketnow_desk/.venv/bin/python",
@@ -251,6 +250,8 @@ def execute_gym_run(
     run_id: str,
     on_step: StepCallback,
     on_spawn: Callable[[int], None] | None = None,
+    on_log: LogCallback | None = None,
+    variants: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     if mode not in {"mock", "live"}:
         raise DemoRunError("NeMo Gym runs from Mock model or Live model.")
@@ -274,8 +275,10 @@ def execute_gym_run(
 
     try:
         count = len(CASES)
+        plan = variants if variants is not None else list(run_plan())
         on_step("prepare", "running", f"Writing the {count} tickets and the skill folders.")
-        sync_without_priority_matrix(root)
+        for item in plan:
+            materialize(root, item)
         data = root / "resources_servers" / "ticketnow_desk" / "data"
         data.mkdir(parents=True, exist_ok=True)
         (data / "tasks.jsonl").write_text(render_tasks_jsonl(), encoding="utf-8")
@@ -335,7 +338,8 @@ def execute_gym_run(
 
         write_env_yaml(root / "env.yaml", policy)
         model_type = policy["POLICY_MODEL_TYPE"]
-        ready_seconds = 240 if _venvs_ready(root, model_type) else 1200
+        installed = venvs_ready(root, model_type)
+        ready_seconds = READY_WITH_VENVS_SECONDS if installed else READY_WITHOUT_VENVS_SECONDS
         on_step("gym", "running", "Starting the head server, the desk, and the verifier.")
         with servers_log.open("w", encoding="utf-8") as handle:
             gym = subprocess.Popen(
@@ -359,35 +363,62 @@ def execute_gym_run(
             on_spawn(gym_pid)
         deadline = time.monotonic() + ready_seconds
         next_detail = 0.0
+        last_size = -1
+        last_growth = time.monotonic()
         while time.monotonic() < deadline:
             if gym.poll() is not None:
-                tail = _scrub(_tail(servers_log), secrets)
+                tail = _scrub(_tail(servers_log, limit=80), secrets)
+                if on_log:
+                    on_log(tail)
                 raise DemoRunError(_gym_failed_message(tail), tail)
             if _http_ok(READY_URL, timeout=3):
                 break
+            size = servers_log.stat().st_size if servers_log.is_file() else 0
             now = time.monotonic()
+            if size != last_size:
+                last_size = size
+                last_growth = now
+            elif installed and now - last_growth >= LOG_STALL_SECONDS:
+                tail = _scrub(_tail(servers_log, limit=80), secrets)
+                if on_log:
+                    on_log(tail)
+                raise DemoRunError(
+                    "NeMo Gym stopped printing and never became ready. "
+                    + _ray_hint(tail),
+                    tail,
+                )
             if now >= next_detail:
+                tail = _scrub(_tail(servers_log, limit=80), secrets)
+                if on_log:
+                    on_log(tail)
                 line = _scrub(_last_line(servers_log), secrets)
-                detail = "Waiting until NeMo Gym reports ready."
-                if not _venvs_ready(root, model_type):
-                    detail = "First start installs one virtualenv per server. That can take several minutes."
+                if installed:
+                    detail = "Waiting until NeMo Gym reports ready. The server environments are already installed."
+                else:
+                    detail = (
+                        "Server environments are not in this image, so NeMo Gym is installing them. "
+                        "That is slower than a prepared image."
+                    )
                 if line:
-                    detail = f"{detail} {line}"
+                    detail = f"{detail} Latest: {line}"
                 on_step("gym", "running", detail)
-                next_detail = now + 4
+                next_detail = now + 2
             time.sleep(1)
         else:
-            tail = _scrub(_tail(servers_log), secrets)
+            tail = _scrub(_tail(servers_log, limit=80), secrets)
+            if on_log:
+                on_log(tail)
             raise DemoRunError(
-                "NeMo Gym did not become ready in time. "
-                + _ray_hint(tail),
+                f"NeMo Gym did not become ready within {ready_seconds} seconds. " + _ray_hint(tail),
                 tail,
             )
         on_step("gym", "done", "NeMo Gym is ready.")
 
         temperature = policy.get("DEMO_TEMPERATURE") or os.environ.get("DEMO_TEMPERATURE", "0") or "0"
-        for key, _label, extra in VARIANTS:
-            on_step(key, "running", f"NeMo Gym is collecting {len(CASES)} rollouts.")
+        for item in plan:
+            key = item["id"]
+            extra = [f"+skills.path={item['path']}"] if item.get("path") else []
+            on_step(key, "running", f"NeMo Gym is collecting {len(CASES)} rollouts for {item['label']}.")
             log_path = results / f"{key}.log"
             command = [
                 gym_bin,
@@ -422,9 +453,16 @@ def execute_gym_run(
                 raise DemoRunError(f"Scoring {key.replace('_', ' ')} failed.", tail)
             on_step(key, "done", f"{len(CASES)} rollouts scored.")
 
-        on_step("report", "running", "Comparing the three runs.")
+        on_step("report", "running", "Comparing the scored configurations.")
         label, model_name, host = _source_label(mode, policy)
-        write_report(results, results / "comparison.md", results / "trace.md", "offboard-friday")
+        chosen = tuple((item["id"], item["label"]) for item in plan)
+        write_report(
+            results,
+            results / "comparison.md",
+            results / "trace.md",
+            "offboard-friday",
+            variants=chosen,
+        )
         banner = f"> {label}\n\n"
         for name in ("comparison.md", "trace.md"):
             target = results / name
@@ -436,6 +474,7 @@ def execute_gym_run(
             model=model_name,
             nemo_gym=nemo_gym_version(),
             endpoint_host=host,
+            variants=chosen,
         )
         on_step("report", "done", "Comparison ready.")
         return view
@@ -458,25 +497,33 @@ def _gym_failed_message(tail: str) -> str:
     return "NeMo Gym stopped before the servers were ready. " + _ray_hint(tail)
 
 
-def run_steps(mode: str) -> list[dict[str, str]]:
+def run_steps(mode: str, variants: list[dict[str, Any]] | None = None) -> list[dict[str, str]]:
     """Checklist shown while a run is in progress. Recorded sample completes it at once."""
+    plan = variants if variants is not None else list(run_plan())
     if mode == "recorded":
-        return [
+        steps = [
             {"id": "prepare", "label": "Prepare the tickets", "state": "done", "detail": "Using the tickets from the recorded run."},
             {"id": "model", "label": "Call a model", "state": "done", "detail": "No model was called. The recording used mock-it-lead."},
             {"id": "gym", "label": "Start NeMo Gym", "state": "done", "detail": "NeMo Gym already scored this recording."},
-            {"id": "no_skills", "label": "Score the tickets with no skills", "state": "done", "detail": "Loaded from sample_run."},
-            {"id": "full_skills", "label": "Score the tickets with all four skills", "state": "done", "detail": "Loaded from sample_run."},
-            {"id": "without_priority_matrix", "label": "Score the tickets with the priority matrix removed", "state": "done", "detail": "Loaded from sample_run."},
-            {"id": "report", "label": "Build the comparison", "state": "done", "detail": "Comparison ready."},
         ]
+        for item in plan:
+            steps.append(
+                {
+                    "id": item["id"],
+                    "label": f"Score: {item['label']}",
+                    "state": "done",
+                    "detail": "Loaded from sample_run.",
+                }
+            )
+        steps.append({"id": "report", "label": "Build the comparison", "state": "done", "detail": "Comparison ready."})
+        return steps
     model_label = "Start the mock model" if mode == "mock" else "Check the live model"
-    return [
+    steps = [
         {"id": "prepare", "label": "Prepare the tickets", "state": "pending", "detail": ""},
         {"id": "model", "label": model_label, "state": "pending", "detail": ""},
         {"id": "gym", "label": "Start NeMo Gym", "state": "pending", "detail": ""},
-        {"id": "no_skills", "label": "Score the tickets with no skills", "state": "pending", "detail": ""},
-        {"id": "full_skills", "label": "Score the tickets with all four skills", "state": "pending", "detail": ""},
-        {"id": "without_priority_matrix", "label": "Score the tickets with the priority matrix removed", "state": "pending", "detail": ""},
-        {"id": "report", "label": "Build the comparison", "state": "pending", "detail": ""},
     ]
+    for item in plan:
+        steps.append({"id": item["id"], "label": f"Score: {item['label']}", "state": "pending", "detail": ""})
+    steps.append({"id": "report", "label": "Build the comparison", "state": "pending", "detail": ""})
+    return steps

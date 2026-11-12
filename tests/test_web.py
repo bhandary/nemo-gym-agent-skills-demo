@@ -38,6 +38,13 @@ def test_page_offers_run_demo() -> None:
     assert "Presenter notes" not in page_js
     assert "talk_track" not in page_js
     assert "text/html" in response.headers["content-type"]
+    assert "Employee request" in page_js
+    assert "Skills loaded" in page_js
+    assert "Agent decision" in page_js
+    assert "Reward check" in page_js
+    assert "Show technical details" in page_js
+    assert "A run is already in progress. Showing it." in page_js
+    assert "compare_without_matrix" in page_js
 
 
 def test_briefing_lists_skills_and_tickets() -> None:
@@ -75,6 +82,23 @@ def test_briefing_lists_skills_and_tickets() -> None:
     assert "Inquiry" in inquiry["outcome"]
     assert "talk_track" not in body
     assert body["modes"]["recorded"]["enabled"] is True
+    assert [choice["name"] for choice in body["skill_choices"]] == [
+        "security-first-response",
+        "ticket-classification",
+        "access-request-policy",
+        "priority-matrix",
+    ]
+    assert [item["id"] for item in body["configurations"]] == [
+        "no_skills",
+        "full_skills",
+        "without_security_first_response",
+        "without_ticket_classification",
+        "without_access_request_policy",
+        "without_priority_matrix",
+    ]
+    assert body["configurations"][0]["baseline"] is True
+    assert phishing["type_label"] == "Incident"
+    assert phishing["category_label"]
 
 
 def test_live_mode_stays_off_without_a_key(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -148,6 +172,13 @@ def test_recorded_sample_matches_the_it_desk() -> None:
     bare = view["traces"]["offboard-friday"]["no_skills"]
     assert all(step["kind"] != "Skill" for step in bare["steps"])
     assert bare["steps"][-1]["score"]["reward"] == pytest.approx(0.4)
+    checks = {row["label"]: row for row in full["steps"][-1]["score"]["checks"]}
+    assert checks["Looked up the employee and the ticket before filing"]["passed"] is True
+    assert checks["Priority"]["passed"] is True
+    assert checks["Actions"]["expected"]
+    missed = {row["label"]: row for row in bare["steps"][-1]["score"]["checks"]}
+    assert missed["Priority"]["passed"] is False
+    assert missed["Looked up the employee and the ticket before filing"]["passed"] is True
 
 
 def test_recorded_run_endpoint() -> None:
@@ -185,6 +216,8 @@ def test_mock_failure_tells_the_presenter_to_use_the_recording(monkeypatch: pyte
 
 
 def test_second_run_is_refused_while_one_is_active(monkeypatch: pytest.MonkeyPatch) -> None:
+    from web.runs import RunState
+
     monkeypatch.setattr("web.runs.gym_available", lambda _root: (True, ""))
     app = create_app(ROOT)
     called = {"value": False}
@@ -194,11 +227,52 @@ def test_second_run_is_refused_while_one_is_active(monkeypatch: pytest.MonkeyPat
         raise DemoRunError("should not run")
 
     monkeypatch.setattr("web.runs.execute_gym_run", spy)
-    app.state.runs._runs["busy"] = type("Busy", (), {"status": "running"})()
+    busy = RunState("mock")
+    busy.id = "busy"
+    app.state.runs._runs["busy"] = busy
     app.state.runs._order.append("busy")
     response = TestClient(app).post("/api/runs", json={"mode": "mock"})
     assert response.status_code == 409
     assert called["value"] is False
+    detail = response.json()["detail"]
+    assert detail["message"] == "A run is already in progress. Showing it."
+    assert detail["run"]["id"] == "busy"
+    assert detail["run"]["status"] == "running"
+
+
+def test_mock_run_scores_the_checked_skills(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict = {}
+
+    def spy(**kwargs):
+        captured["variants"] = kwargs["variants"]
+        raise DemoRunError("stop before Gym")
+
+    monkeypatch.setattr("web.runs.gym_available", lambda _root: (True, ""))
+    monkeypatch.setattr("web.runs.execute_gym_run", spy)
+    app = create_app(ROOT)
+    app.state.runs.inline = True
+    response = TestClient(app).post(
+        "/api/runs",
+        json={
+            "mode": "mock",
+            "skills": [
+                "security-first-response",
+                "ticket-classification",
+                "access-request-policy",
+                "priority-matrix",
+            ],
+            "compare_without_matrix": False,
+        },
+    )
+    assert response.status_code == 200
+    assert [item["id"] for item in captured["variants"]] == ["no_skills", "full_skills"]
+
+
+def test_unknown_skill_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("web.runs.gym_available", lambda _root: (True, ""))
+    response = _client().post("/api/runs", json={"mode": "mock", "skills": ["not-a-playbook"]})
+    assert response.status_code == 400
+    assert "Unknown skill" in response.text
 
 
 def test_env_yaml_reuses_venvs_and_turns_reasoning_parser_off(tmp_path: Path) -> None:

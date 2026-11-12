@@ -7,9 +7,14 @@ const state = {
   caseId: "offboard-friday",
   variant: "full_skills",
   step: 0,
+  walkStep: 0,
+  showTechnical: false,
+  selectedSkills: null,
+  compareWithoutMatrix: true,
   skill: null,
   skillDoc: 0,
   pollTimer: null,
+  notice: "",
 };
 
 const $ = (id) => document.getElementById(id);
@@ -192,37 +197,57 @@ function renderStory() {
 
   const tickets = el("section", "panel");
   tickets.append(el("h2", "", `${data.tickets.length} tickets`));
-  tickets.append(el("p", "reward-note", "Choose a ticket to walk the episode. The policy line is what the grader expects."));
-  const ticketList = el("div", "ticket-list");
-  ticketList.id = "ticket-list";
-  for (const ticket of data.tickets) {
-    const button = el("button", "ticket");
-    button.type = "button";
-    button.dataset.case = ticket.case_id;
-    button.append(el("strong", "", `${ticket.ticket_id}  ${ticket.title}`));
-    button.append(el("span", "", ticket.glance));
-    button.append(el("span", "outcome", ticket.outcome));
-    button.addEventListener("click", () => {
-      state.caseId = ticket.case_id;
-      state.step = 0;
-      markTickets();
-      renderTrace();
-      $("trace").scrollIntoView({ block: "start" });
-    });
-    ticketList.append(button);
-  }
-  tickets.append(ticketList);
+  tickets.append(el("p", "reward-note", "Pick one in Walk the ticket. Each card shows the request type and the category."));
   brief.append(tickets);
   if (!data.tickets.some((ticket) => ticket.case_id === state.caseId) && data.tickets.length) {
     state.caseId = data.tickets[0].case_id;
   }
-  markTickets();
 }
 
 function markTickets() {
-  for (const button of document.querySelectorAll(".ticket")) {
+  for (const button of document.querySelectorAll(".ticket-card")) {
     button.classList.toggle("is-on", button.dataset.case === state.caseId);
+    button.setAttribute("aria-pressed", button.dataset.case === state.caseId ? "true" : "false");
   }
+}
+
+function ensureSelection() {
+  if (state.selectedSkills) return;
+  const choices = (state.briefing && state.briefing.skill_choices) || [];
+  state.selectedSkills = choices.map((skill) => skill.name);
+}
+
+function sameSkills(left, right) {
+  if (left.length !== right.length) return false;
+  const wanted = new Set(right);
+  return left.every((name) => wanted.has(name));
+}
+
+function primaryConfig() {
+  ensureSelection();
+  const configs = (state.briefing && state.briefing.configurations) || [];
+  const match = configs.find((item) => !item.baseline && sameSkills(item.skills, state.selectedSkills));
+  if (match) return match;
+  if (!state.selectedSkills.length) return { id: "no_skills", label: "No skills", skills: [] };
+  const titles = (state.briefing.skill_choices || [])
+    .filter((skill) => state.selectedSkills.includes(skill.name))
+    .map((skill) => skill.title);
+  return { id: "selected", label: titles.join(", ") || "Selected playbooks", skills: [...state.selectedSkills] };
+}
+
+function visibleVariantIds() {
+  const primary = primaryConfig();
+  const ids = ["no_skills"];
+  if (primary.id !== "no_skills") ids.push(primary.id);
+  if (
+    state.compareWithoutMatrix &&
+    state.selectedSkills.includes("priority-matrix") &&
+    primary.id !== "without_priority_matrix" &&
+    !ids.includes("without_priority_matrix")
+  ) {
+    ids.push("without_priority_matrix");
+  }
+  return ids;
 }
 
 function renderProgress() {
@@ -244,11 +269,27 @@ function renderProgress() {
     item.append(dot, copy);
     list.append(item);
   }
+  const log = $("progress-log");
+  if (run.log_tail && run.status === "running") {
+    log.hidden = false;
+    log.textContent = run.log_tail;
+  } else {
+    log.hidden = true;
+    log.textContent = "";
+  }
 }
 
 function renderAlert() {
   const box = $("alert");
   const run = state.run;
+  if (state.notice && run && run.status === "running") {
+    box.hidden = false;
+    box.replaceChildren(
+      el("h2", "", "A run is already in progress"),
+      el("p", "", "Showing it. The scores update here when it finishes."),
+    );
+    return;
+  }
   if (!run || run.status !== "failed" || !run.error) {
     box.hidden = true;
     box.replaceChildren();
@@ -322,10 +363,24 @@ function renderResults() {
   banner.append(el("strong", "", kicker));
   banner.append(el("p", "", view.source_label));
 
-  host.append(el("p", "eyebrow", "Same tickets, three configurations"));
+  const visible = visibleVariantIds();
+  const present = new Set(view.variants.map((variant) => variant.id));
+  const missing = visible.filter((id) => !present.has(id) && id !== "no_skills");
+  host.append(el("p", "eyebrow", "Same tickets, the configurations you chose"));
   host.append(el("h2", "", "What the grader awarded"));
+  if (missing.length) {
+    const wanted = primaryConfig();
+    host.append(
+      el(
+        "p",
+        "reward-note",
+        `The scores on screen do not include “${wanted.label}”. Recorded sample has no skills, all four skills, and without the priority matrix. Run Mock or Live to score the mix you checked.`,
+      ),
+    );
+  }
   const means = el("div", "means");
-  for (const item of view.comparison.summary) {
+  const summary = view.comparison.summary.filter((item) => visible.includes(item.variant) && present.has(item.variant));
+  for (const item of summary) {
     const card = el("div", `mean ${item.variant === "full_skills" ? "full" : ""}`);
     const label = el("span");
     const swatch = el("i", `swatch ${variantClass(item.variant)}`);
@@ -337,11 +392,13 @@ function renderResults() {
   }
   host.append(means);
 
+  const shown = view.variants.filter((variant) => visible.includes(variant.id));
   const sheet = el("div", "sheet");
+  sheet.style.setProperty("--cols", String(Math.max(shown.length, 1)));
   sheet.setAttribute("role", "table");
   const head = el("div", "sheet-row sheet-head");
   head.setAttribute("role", "row");
-  const headers = ["Ticket", ...view.variants.map((variant) => variant.label)];
+  const headers = ["Ticket", ...shown.map((variant) => variant.label)];
   for (const text of headers) {
     const cell = el("div", "", text);
     cell.setAttribute("role", "columnheader");
@@ -356,7 +413,7 @@ function renderResults() {
     name.append(el("strong", "", `${ticket.ticket_id}`));
     name.append(el("span", "", ticket.title));
     row.append(name);
-    for (const cell of ticket.cells) row.append(cellMeter(cell));
+    for (const cell of ticket.cells.filter((item) => visible.includes(item.variant))) row.append(cellMeter(cell));
     sheet.append(row);
   }
   host.append(sheet);
@@ -364,129 +421,375 @@ function renderResults() {
   state.renderedView = view;
 }
 
-function currentTrace() {
-  if (!state.view) return null;
-  const byCase = state.view.traces[state.caseId];
-  if (!byCase) return null;
-  return byCase[state.variant] || null;
+const WALK_STEPS = [
+  ["Employee request", "This is the note a teammate handed the lead. It does not name the priority or the queue."],
+  ["Skills loaded", "These are the playbooks that lead was allowed to open. The comparison lead was given none."],
+  ["Agent decision", "Each column is one filing. A green Pass matches the company rule. A red Miss does not."],
+  ["Reward check", "The grader checks the lookups and each part of the filing. This is the rule for the ticket you picked."],
+  ["Score", "Looking the facts up is worth 0.4. Matching the rule is worth 0.6. Those two parts add up to the reward."],
+];
+
+const CATEGORY_ICON = {
+  access: "M7 11V8a5 5 0 0 1 10 0v3M6 11h12v9H6z",
+  network: "M12 5v4M12 15v4M5 12h4M15 12h4M12 12h.01",
+  email: "M4 7h16v10H4zM4 7l8 6 8-6",
+  hardware: "M5 6h14v9H5zM9 19h6",
+  software: "M5 5h14v14H5zM5 9h14",
+  lifecycle: "M12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 19c1.2-2.2 3.2-3.2 6-3.2S16.8 16.8 18 19",
+  security: "M12 3l7 3v6c0 4.2-2.8 7.2-7 9-4.2-1.8-7-4.8-7-9V6z",
+  mobile: "M9 3h6a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM11 18h2",
+  status: "M12 7v5l3 2M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z",
+};
+
+function icon(category) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("d", CATEGORY_ICON[category] || CATEGORY_ICON.status);
+  path.setAttribute("fill", "none");
+  path.setAttribute("stroke", "currentColor");
+  path.setAttribute("stroke-width", "1.7");
+  path.setAttribute("stroke-linecap", "round");
+  path.setAttribute("stroke-linejoin", "round");
+  svg.append(path);
+  return svg;
+}
+
+function currentTicket() {
+  return (state.briefing.tickets || []).find((ticket) => ticket.case_id === state.caseId) || state.briefing.tickets[0];
+}
+
+function pairForTicket() {
+  const ticket = currentTicket();
+  const byCase = (state.view && state.view.traces[ticket.case_id]) || {};
+  const primary = primaryConfig();
+  return {
+    ticket,
+    without: byCase.no_skills || null,
+    withTrace: byCase[primary.id] || null,
+    withLabel: primary.label,
+  };
+}
+
+function scoreOf(trace) {
+  if (!trace) return null;
+  const step = [...trace.steps].reverse().find((item) => item.score);
+  return step ? step.score : null;
+}
+
+function checkRow(check) {
+  const row = el("div", `rubric ${check.passed ? "is-pass" : "is-miss"}`);
+  row.append(el("span", "mark", check.passed ? "Pass" : "Miss"));
+  const copy = el("div");
+  copy.append(el("strong", "", check.label));
+  copy.append(el("span", "", check.passed ? String(check.filed) : `Filed ${check.filed}. The rule says ${check.expected}.`));
+  row.append(copy);
+  return row;
+}
+
+function compareCard(title, trace, mode) {
+  const card = el("article", "compare-card");
+  card.append(el("h3", "", title));
+  if (!trace) {
+    card.append(el("p", "", "This side was not scored in the run on screen. Run Mock or Live to score it."));
+    return card;
+  }
+  const score = scoreOf(trace);
+  if (!score) {
+    card.append(el("p", "", "This rollout has no score."));
+    return card;
+  }
+  if (mode === "score") card.append(el("p", "big-score", rewardText(score.reward)));
+  const checks = (score.checks || []).filter((item) => mode === "score" || item.label !== "Looked up the employee and the ticket before filing");
+  if (mode === "decision") {
+    const filing = checks.map((item) => item.filed).join(" · ");
+    card.append(el("p", "decision-line", filing));
+  }
+  for (const check of checks) card.append(checkRow(check));
+  return card;
+}
+
+function renderPicker() {
+  ensureSelection();
+  const host = $("picker");
+  host.replaceChildren();
+  host.append(el("p", "eyebrow", "What to score"));
+  host.append(el("h2", "", "Playbooks the lead may open"));
+  host.append(
+    el(
+      "p",
+      "picker-caption",
+      "These checkboxes are the same in Recorded, Mock, and Live. Leave them all on to score every playbook. Uncheck one to score the tickets without that playbook. A lead with no playbooks is always scored beside them.",
+    ),
+  );
+  const list = el("div", "skill-checks");
+  list.setAttribute("role", "group");
+  list.setAttribute("aria-label", "Playbooks");
+  for (const skill of state.briefing.skill_choices) {
+    const label = el("label", "skill-check");
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.value = skill.name;
+    input.checked = state.selectedSkills.includes(skill.name);
+    input.addEventListener("change", () => {
+      const names = state.briefing.skill_choices.map((item) => item.name);
+      state.selectedSkills = names.filter((name) => {
+        const box = list.querySelector(`input[value="${name}"]`);
+        return box && box.checked;
+      });
+      state.walkStep = 0;
+      updatePickerSummary();
+      renderResults();
+      renderTrace();
+    });
+    label.append(input, el("span", "", skill.title));
+    list.append(label);
+  }
+  host.append(list);
+  const ablation = el("label", "skill-check wide");
+  const matrix = document.createElement("input");
+  matrix.type = "checkbox";
+  matrix.checked = state.compareWithoutMatrix;
+  matrix.addEventListener("change", () => {
+    state.compareWithoutMatrix = matrix.checked;
+    updatePickerSummary();
+    renderResults();
+    renderTrace();
+  });
+  ablation.append(matrix, el("span", "", "Also show these tickets with the priority matrix removed"));
+  host.append(ablation);
+  host.append(el("p", "picker-now", ""));
+  updatePickerSummary();
+}
+
+function updatePickerSummary() {
+  const node = document.querySelector(".picker-now");
+  if (!node) return;
+  const primary = primaryConfig();
+  const parts = ["No skills"];
+  if (primary.id !== "no_skills") parts.push(primary.label);
+  if (
+    state.compareWithoutMatrix &&
+    state.selectedSkills.includes("priority-matrix") &&
+    primary.id !== "without_priority_matrix"
+  ) {
+    parts.push("Without the priority matrix");
+  }
+  node.textContent = `The comparison shows ${parts.join(", ")}.`;
 }
 
 function renderTrace() {
   const host = $("trace");
   const view = state.view;
-  if (!view) {
-    host.replaceChildren(el("p", "loading", "The episode trace loads with the scores."));
+  if (!view || !state.briefing) {
+    host.replaceChildren(el("p", "loading", "The walk loads with the scores."));
     return;
   }
+  const pair = pairForTicket();
+  const ticket = pair.ticket;
   host.replaceChildren();
-  const head = el("div", "trace-head");
-  const titles = el("div");
-  titles.append(el("p", "eyebrow", "One episode"));
-  titles.append(el("h2", "", "Walk the ticket"));
-  head.append(titles);
-  const chips = el("div", "chips");
-  chips.setAttribute("role", "group");
-  chips.setAttribute("aria-label", "Which configuration");
-  for (const variant of view.variants) {
-    const button = el("button", `chip ${state.variant === variant.id ? "is-on" : ""}`, variant.label);
+  const intro = el("div", "walk-intro");
+  intro.append(el("p", "eyebrow", "One ticket, one rule"));
+  intro.append(el("h2", "", "Walk the ticket"));
+  intro.append(
+    el(
+      "p",
+      "walk-explain",
+      "Pick a ticket, then move through five steps: the request, the playbooks, the filing, the checks, and the score.",
+    ),
+  );
+  host.append(intro);
+
+  const cards = el("div", "ticket-cards");
+  cards.setAttribute("role", "list");
+  for (const item of state.briefing.tickets) {
+    const button = el("button", "ticket-card");
     button.type = "button";
+    button.dataset.case = item.case_id;
+    button.setAttribute("role", "listitem");
+    const badge = el("span", `type-badge type-${item.ticket_type}`, item.type_label || item.ticket_type);
+    const title = el("strong", "", item.title);
+    const category = el("span", "category-line");
+    category.append(icon(item.category), document.createTextNode(item.category_label || item.category));
+    button.append(badge, title, category, el("small", "", item.ticket_id));
     button.addEventListener("click", () => {
-      state.variant = variant.id;
-      state.step = 0;
+      state.caseId = item.case_id;
+      state.walkStep = 0;
+      markTickets();
       renderTrace();
     });
-    chips.append(button);
+    cards.append(button);
   }
-  head.append(chips);
-  host.append(head);
+  host.append(cards);
+  markTickets();
 
-  const trace = currentTrace();
-  if (!trace) {
-    host.append(el("p", "", "This configuration has no rollout for the selected ticket."));
-    return;
-  }
-  const handoff = el("p", "handoff", trace.handoff);
-  host.append(handoff);
-  const meta = el("p", "skills-meta");
-  if (trace.skills_loaded.length) {
-    meta.textContent = `Skills offered: ${trace.skills_loaded.join(", ")}. Hash ${trace.skills_hash || "none"}.`;
-  } else {
-    meta.textContent = "No skills were offered on this run. The lead had the handoff and the tools only.";
-  }
-  host.append(meta);
-
-  const steps = trace.steps;
-  if (state.step >= steps.length) state.step = 0;
-  const walker = el("div", "walker");
-  const list = el("ol", "step-list");
-  steps.forEach((step, index) => {
-    const item = document.createElement("li");
-    const button = el("button", `step ${index === state.step ? "is-current" : ""}`);
+  if (state.walkStep < 0 || state.walkStep >= WALK_STEPS.length) state.walkStep = 0;
+  const stepper = el("div", "stepper");
+  stepper.setAttribute("role", "tablist");
+  stepper.setAttribute("aria-label", "Steps for this ticket");
+  WALK_STEPS.forEach(([label], index) => {
+    const button = el("button", `stepper-step ${index === state.walkStep ? "is-current" : ""}`);
     button.type = "button";
-    button.append(el("small", "", step.kind));
-    button.append(el("strong", "", step.title));
+    button.setAttribute("role", "tab");
+    button.setAttribute("aria-selected", index === state.walkStep ? "true" : "false");
+    button.append(el("span", "stepper-num", String(index + 1)));
+    button.append(el("span", "", label));
     button.addEventListener("click", () => {
-      state.step = index;
+      state.walkStep = index;
       renderTrace();
     });
-    item.append(button);
-    list.append(item);
+    stepper.append(button);
   });
-  walker.append(list);
+  host.append(stepper);
 
-  const body = el("div", "step-body");
-  const step = steps[state.step];
-  body.append(el("p", "eyebrow", step.kind));
-  body.append(el("h3", "", step.title));
-  body.append(el("p", "", step.detail));
-  if (step.filing) {
-    const filing = step.filing;
-    body.append(el("p", "", `${filing.ticket_type || "—"} · ${filing.category || "—"} · ${filing.priority || "—"} · ${filing.assignment_group || "—"}. Actions ${filing.actions || "—"}.`));
-    if (filing.requester_message) {
-      body.append(el("p", "handoff", filing.requester_message));
-    }
-  }
-  if (step.score) {
-    const score = step.score;
-    body.append(el("p", "", `Procedure ${score.procedure.toFixed(0)} · decision ${score.decision.toFixed(0)} · reward ${rewardText(score.reward)}.`));
-    body.append(el("p", "", `Policy: ${score.expected_line}`));
-    if (score.filed_ticket_type) {
-      body.append(el("p", "", `Filed: ${score.filed_ticket_type} · ${score.filed_category} · ${score.filed_priority} · ${score.filed_assignment_group}. Actions ${score.filed_actions}.`));
+  const [stepTitle, caption] = WALK_STEPS[state.walkStep];
+  const card = el("article", "walk-card");
+  card.setAttribute("aria-live", "polite");
+  card.append(el("p", "walk-kicker", `Step ${state.walkStep + 1} of ${WALK_STEPS.length}`));
+  card.append(el("h3", "", stepTitle));
+  card.append(el("p", "walk-caption", caption));
+
+  if (state.walkStep === 0) {
+    card.append(el("blockquote", "request", ticket.handoff));
+    card.append(el("p", "rule-line", `The company rule for this ticket: ${ticket.outcome}`));
+  } else if (state.walkStep === 1) {
+    const titles = new Map((state.briefing.skill_choices || []).map((skill) => [skill.name, skill.title]));
+    const loaded = pair.withTrace && pair.withTrace.skills_loaded.length ? pair.withTrace.skills_loaded : pair.withLabel === "No skills" ? [] : primaryConfig().skills;
+    if (!loaded.length) {
+      card.append(el("p", "lead-copy", "No playbooks were loaded. The lead had the note and the tools only."));
     } else {
-      body.append(el("p", "", "Filed: nothing."));
+      const list = el("ul", "playbook-list");
+      for (const name of loaded) list.append(el("li", "", titles.get(name) || name));
+      card.append(list);
     }
-    if (score.gym_reward != null) {
-      body.append(el("p", "skills-meta", `NeMo Gym recorded reward ${rewardText(score.gym_reward)}.`));
+    card.append(el("p", "", "The lead in the other column was not allowed to open any playbook."));
+    if (!pair.withTrace && primaryConfig().id !== "no_skills") {
+      card.append(el("p", "reward-note", "That mix is not in the scores on screen. Run Mock or Live to score it."));
     }
+  } else if (state.walkStep === 2) {
+    const columns = el("div", "compare");
+    columns.append(compareCard("Without skills", pair.without, "decision"));
+    columns.append(compareCard(pair.withLabel, pair.withTrace, "decision"));
+    card.append(columns);
+  } else if (state.walkStep === 3) {
+    const score = scoreOf(pair.withTrace) || scoreOf(pair.without);
+    if (!score || !score.checks) {
+      card.append(el("p", "", "The checks appear after a scored run is on screen."));
+    } else {
+      const list = el("ul", "check-list");
+      for (const check of score.checks) {
+        list.append(el("li", "", `${check.label}. The rule says ${check.expected}.`));
+      }
+      card.append(list);
+    }
+    card.append(el("p", "rule-line", ticket.outcome));
+  } else {
+    const columns = el("div", "compare");
+    columns.append(compareCard("Without skills", pair.without, "score"));
+    columns.append(compareCard(pair.withLabel, pair.withTrace, "score"));
+    card.append(columns);
   }
-  if (step.excerpt && step.kind !== "Reward") {
-    const pre = document.createElement("pre");
-    pre.textContent = step.excerpt;
-    body.append(pre);
-  } else if (step.excerpt && step.kind === "Reward" && step.excerpt !== "matches policy") {
-    body.append(el("p", "skills-meta", step.excerpt));
-  }
+
   const pager = el("div", "pager");
-  const previous = el("button", "", "Previous");
-  previous.type = "button";
-  previous.disabled = state.step === 0;
-  previous.addEventListener("click", () => {
-    state.step -= 1;
+  const back = el("button", "", "Back");
+  back.type = "button";
+  back.disabled = state.walkStep === 0;
+  back.addEventListener("click", () => {
+    state.walkStep -= 1;
     renderTrace();
   });
-  const next = el("button", "", "Next");
+  const next = el("button", "next", "Next");
   next.type = "button";
-  next.disabled = state.step >= steps.length - 1;
+  next.disabled = state.walkStep >= WALK_STEPS.length - 1;
   next.addEventListener("click", () => {
-    state.step += 1;
+    state.walkStep += 1;
     renderTrace();
   });
-  pager.append(previous, el("span", "", `Step ${state.step + 1} of ${steps.length}`), next);
-  body.append(pager);
-  walker.append(body);
-  host.append(walker);
+  pager.append(back, el("span", "", `Step ${state.walkStep + 1} of ${WALK_STEPS.length}`), next);
+  card.append(pager);
+  card.append(el("p", "key-hint", "The left and right arrow keys move between these steps."));
+
+  const technical = document.createElement("details");
+  technical.className = "technical";
+  if (state.showTechnical) technical.open = true;
+  technical.append(el("summary", "", "Show technical details"));
+  technical.addEventListener("toggle", () => {
+    state.showTechnical = technical.open;
+  });
+  const focus = pair.withTrace || pair.without;
+  if (!focus) {
+    technical.append(el("p", "", "No tool trace is available for this ticket."));
+  } else {
+    if (focus.skills_hash) {
+      technical.append(el("p", "skills-meta", `Skills hash ${focus.skills_hash}.`));
+    }
+    const list = el("ol", "tech-list");
+    focus.steps.forEach((step, index) => {
+      const item = el("li", "");
+      item.append(el("strong", "", `${index + 1}. ${step.title}`));
+      item.append(el("span", "", step.detail || ""));
+      if (step.excerpt) item.append(el("pre", "", step.excerpt));
+      list.append(item);
+    });
+    technical.append(list);
+  }
+  card.append(technical);
+  host.append(card);
 }
 
+function adoptRun(run, notice) {
+  state.run = run;
+  state.notice = notice || "";
+  if (run.view) {
+    state.view = run.view;
+    state.walkStep = 0;
+  }
+  renderControls();
+  renderProgress();
+  renderAlert();
+  renderResults();
+  renderTrace();
+  if (run.status === "running") {
+    if (state.pollTimer) clearTimeout(state.pollTimer);
+    state.pollTimer = setTimeout(() => poll(run.id), 800);
+  }
+  document.getElementById("comparison").scrollIntoView({ block: "start" });
+}
+
+async function startRun(event) {
+  event.preventDefault();
+  if (state.pollTimer) clearTimeout(state.pollTimer);
+  state.notice = "";
+  $("run-button").disabled = true;
+  ensureSelection();
+  try {
+    const response = await fetch("/api/runs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: state.mode,
+        skills: state.selectedSkills,
+        compare_without_matrix: state.compareWithoutMatrix,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (response.status === 409 && payload.detail && payload.detail.run) {
+      adoptRun(payload.detail.run, payload.detail.message || "A run is already in progress. Showing it.");
+      return;
+    }
+    if (!response.ok) {
+      const error = new Error(errorDetail(payload));
+      error.status = response.status;
+      throw error;
+    }
+    adoptRun(payload, "");
+  } catch (error) {
+    $("alert").hidden = false;
+    $("alert").replaceChildren(el("h2", "", "Could not start"), el("p", "", error.message));
+    renderControls();
+  }
+}
 function openSkill(name) {
   const skill = state.briefing.skills.find((item) => item.name === name);
   if (!skill) return;
@@ -528,14 +831,13 @@ async function poll(id) {
     const run = await readJson(await fetch(`/api/runs/${id}`));
     const finished = run.status !== "running";
     state.run = run;
-    if (run.view) {
-      state.view = run.view;
-      state.step = 0;
-    }
+    if (finished) state.notice = "";
+    if (run.view) state.view = run.view;
     renderControls();
     renderProgress();
     renderAlert();
     if (run.view && state.renderedView !== run.view) {
+      state.walkStep = 0;
       renderResults();
       renderTrace();
     } else {
@@ -545,36 +847,6 @@ async function poll(id) {
   } catch (error) {
     $("alert").hidden = false;
     $("alert").replaceChildren(el("h2", "", "Lost contact with the run"), el("p", "", error.message));
-  }
-}
-
-async function startRun(event) {
-  event.preventDefault();
-  if (state.pollTimer) clearTimeout(state.pollTimer);
-  $("run-button").disabled = true;
-  try {
-    const response = await fetch("/api/runs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode: state.mode }),
-    });
-    const run = await readJson(response);
-    state.run = run;
-    if (run.view) {
-      state.view = run.view;
-      state.step = 0;
-    }
-    renderControls();
-    renderProgress();
-    renderAlert();
-    renderResults();
-    renderTrace();
-    if (run.status === "running") state.pollTimer = setTimeout(() => poll(run.id), 800);
-    document.getElementById("comparison").scrollIntoView({ block: "start" });
-  } catch (error) {
-    $("alert").hidden = false;
-    $("alert").replaceChildren(el("h2", "", "Could not start"), el("p", "", error.message));
-    renderControls();
   }
 }
 
@@ -589,11 +861,12 @@ async function init() {
     renderModes();
     renderControls();
     renderStory();
+    ensureSelection();
+    renderPicker();
     const params = new URLSearchParams(location.search);
     if (params.get("ticket")) state.caseId = params.get("ticket");
-    if (params.get("variant")) state.variant = params.get("variant");
     const step = Number(params.get("step"));
-    if (Number.isInteger(step) && step > 0) state.step = step - 1;
+    if (Number.isInteger(step) && step > 0) state.walkStep = Math.min(WALK_STEPS.length, step) - 1;
     renderResults();
     renderTrace();
     markTickets();
@@ -604,6 +877,18 @@ async function init() {
     $("comparison").replaceChildren(el("p", "", "The scores could not be loaded."));
   }
 }
+
+document.addEventListener("keydown", (event) => {
+  if (event.altKey || event.metaKey || event.ctrlKey) return;
+  if ($("skill-dialog").open) return;
+  const tag = event.target && event.target.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+  if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+  event.preventDefault();
+  if (event.key === "ArrowRight") state.walkStep = Math.min(WALK_STEPS.length - 1, state.walkStep + 1);
+  if (event.key === "ArrowLeft") state.walkStep = Math.max(0, state.walkStep - 1);
+  renderTrace();
+});
 
 $("runbar").addEventListener("submit", startRun);
 $("skill-close").addEventListener("click", () => $("skill-dialog").close());

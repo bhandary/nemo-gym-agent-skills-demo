@@ -7,8 +7,9 @@ from typing import Any
 
 import yaml
 
-from demo.runner import gym_available
+from demo.runner import gym_available, venvs_ready
 from demo.settings import model_settings
+from demo.skill_sets import SKILLS, selection_config
 from demo.story import CATEGORY_PLAIN, TYPE_PLAIN, outcome_line, ticket_title
 from resources_servers.ticketnow_desk.policy import AGED_INQUIRY_HOURS, CASES, decide
 
@@ -120,7 +121,9 @@ def _tickets() -> list[dict[str, Any]]:
                 "channel": case["ticket"]["channel"],
                 "outcome": outcome_line(decision),
                 "ticket_type": decision.ticket_type,
+                "type_label": TYPE_PLAIN.get(decision.ticket_type, decision.ticket_type),
                 "category": decision.category,
+                "category_label": CATEGORY_PLAIN.get(decision.category, decision.category),
                 "priority": decision.priority,
                 "assignment_group": decision.assignment_group,
                 "actions": list(decision.actions),
@@ -147,18 +150,22 @@ def briefing(root: Path) -> dict[str, Any]:
             "A lead who looks everything up and then guesses the priority still loses most of the point."
         ),
         "configurations": [
-            {"id": "no_skills", "label": "No skills", "detail": "The lead sees the tools and the handoff only."},
             {
-                "id": "full_skills",
-                "label": "Full skills",
-                "detail": "Security first response, classification, access policy, and the priority matrix.",
-            },
-            {
-                "id": "without_priority_matrix",
-                "label": "Priority matrix removed",
-                "detail": "Security, classification, and access remain. The priority levels are gone.",
-            },
+                "id": item["id"],
+                "label": item["label"],
+                "skills": item["skills"],
+                "baseline": item["id"] == "no_skills",
+            }
+            for item in (
+                selection_config([]),
+                selection_config([name for name, _title in SKILLS]),
+                *(
+                    selection_config([name for name, _title in SKILLS if name != omitted])
+                    for omitted, _title in SKILLS
+                ),
+            )
         ],
+        "skill_choices": [{"name": name, "title": title} for name, title in SKILLS],
         "skills": _skills(root),
         "tickets": _tickets(),
         "modes": {
@@ -171,8 +178,12 @@ def briefing(root: Path) -> dict[str, Any]:
                 "enabled": gym_ok,
                 "reason": gym_reason,
                 "detail": (
-                    f"Starts NeMo Gym and scores the {count} tickets three times against the local mock. "
-                    "This is not a live model. The first start in a fresh checkout can take several minutes."
+                    f"Starts NeMo Gym and scores the {count} tickets against the local mock. This is not a live model."
+                    if venvs_ready(root, "vllm_model")
+                    else (
+                        f"Starts NeMo Gym and scores the {count} tickets against the local mock. "
+                        "This is not a live model. The first start installs server environments and can take several minutes."
+                    )
                 ),
             },
             "live": {

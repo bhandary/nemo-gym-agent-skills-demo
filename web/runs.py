@@ -16,10 +16,13 @@ from typing import Any
 from demo.present import load_sample_view
 from demo.runner import DemoRunError, execute_gym_run, gym_available, run_steps
 from demo.settings import model_settings
+from demo.skill_sets import UnknownSkill, run_plan
 
 
 class RunBusy(Exception):
-    pass
+    def __init__(self, run: dict[str, Any]) -> None:
+        super().__init__("A run is already in progress. Showing it.")
+        self.run = run
 
 
 class RunUnknown(Exception):
@@ -31,11 +34,12 @@ def _now() -> str:
 
 
 class RunState:
-    def __init__(self, mode: str) -> None:
+    def __init__(self, mode: str, variants: list[dict[str, Any]] | None = None) -> None:
         self.id = uuid.uuid4().hex[:12]
         self.mode = mode
         self.status = "running"
-        self.steps = run_steps(mode)
+        self.variants = variants if variants is not None else list(run_plan())
+        self.steps = run_steps(mode, self.variants)
         self.error = ""
         self.log_tail = ""
         self.view: dict[str, Any] | None = None
@@ -65,12 +69,26 @@ class RunManager:
         self._order: list[str] = []
         self._groups: list[int] = []
 
-    def start(self, mode: str) -> dict[str, Any]:
+    def start(
+        self,
+        mode: str,
+        skill_names: list[str] | None = None,
+        compare_without_matrix: bool = True,
+    ) -> dict[str, Any]:
         self._reject_unavailable(mode)
+        try:
+            variants = (
+                list(run_plan())
+                if mode == "recorded"
+                else list(run_plan(skill_names, compare_without_matrix=compare_without_matrix))
+            )
+        except UnknownSkill as exc:
+            raise DemoRunError(str(exc)) from exc
         with self._lock:
-            if any(run.status == "running" for run in self._runs.values()):
-                raise RunBusy("A demo is already running.")
-            state = RunState(mode)
+            for run in self._runs.values():
+                if run.status == "running":
+                    raise RunBusy(run.to_dict())
+            state = RunState(mode, variants)
             self._runs[state.id] = state
             self._order.append(state.id)
             self._trim()
@@ -138,6 +156,8 @@ class RunManager:
                     run_id=state.id,
                     on_step=lambda step_id, step_state, detail: self._mark(state, step_id, step_state, detail),
                     on_spawn=self._track,
+                    on_log=lambda tail: self._log(state, tail),
+                    variants=state.variants,
                 )
             self._succeed(state, view)
         except DemoRunError as exc:
@@ -150,6 +170,10 @@ class RunManager:
                 "The demo stopped before the comparison was ready.",
                 traceback.format_exc()[-4000:],
             )
+
+    def _log(self, state: RunState, tail: str) -> None:
+        with self._lock:
+            state.log_tail = (tail or "")[-4000:]
 
     def _mark(self, state: RunState, step_id: str, step_state: str, detail: str) -> None:
         with self._lock:

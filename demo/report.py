@@ -16,8 +16,8 @@ from resources_servers.ticketnow_desk.policy import CASES, score_output
 
 VARIANTS = (
     ("no_skills", "No skills"),
-    ("full_skills", "Full skills"),
-    ("without_priority_matrix", "Priority matrix removed"),
+    ("full_skills", "All four skills"),
+    ("without_priority_matrix", "Without the priority matrix"),
 )
 
 TRACE_CASE = "offboard-friday"
@@ -79,16 +79,21 @@ def _expected_line(graded: Any) -> str:
     )
 
 
-def comparison_markdown(by_variant: dict[str, dict[str, dict[str, Any]]]) -> str:
+def comparison_markdown(
+    by_variant: dict[str, dict[str, dict[str, Any]]],
+    variants: tuple[tuple[str, str], ...] | None = None,
+) -> str:
+    chosen = variants or VARIANTS
+    header = ["Ticket", *[label for _key, label in chosen]]
     lines = [
-        "| Ticket | No skills | Full skills | Priority matrix removed |",
-        "| --- | --- | --- | --- |",
+        "| " + " | ".join(header) + " |",
+        "| " + " | ".join(["---"] * len(header)) + " |",
     ]
-    means = {key: [] for key, _label in VARIANTS}
-    passes = {key: 0 for key, _label in VARIANTS}
+    means = {key: [] for key, _label in chosen}
+    passes = {key: 0 for key, _label in chosen}
     for case in CASES:
         cells = [f"{case['ticket']['ticket_id']} {case['case_id']}"]
-        for key, _label in VARIANTS:
+        for key, _label in chosen:
             row = by_variant[key].get(case["case_id"])
             if row is None:
                 cells.append("missing")
@@ -103,7 +108,7 @@ def comparison_markdown(by_variant: dict[str, dict[str, dict[str, Any]]]) -> str
         lines.append("| " + " | ".join(cells) + " |")
     summary = ["Mean reward"]
     success = ["Correct decisions"]
-    for key, _label in VARIANTS:
+    for key, _label in chosen:
         values = means[key]
         summary.append(f"{sum(values) / len(values):.2f}" if values else "n/a")
         success.append(f"{passes[key]} / {len(CASES)}")
@@ -171,12 +176,27 @@ def trace_markdown(row: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def write_report(results: Path, comparison_path: Path, trace_path: Path, trace_case: str) -> str:
-    by_variant = {key: _index(_load(results / f"{key}.jsonl")) for key, _label in VARIANTS}
-    comparison = comparison_markdown(by_variant)
-    full = by_variant["full_skills"].get(trace_case)
+def write_report(
+    results: Path,
+    comparison_path: Path,
+    trace_path: Path,
+    trace_case: str,
+    variants: tuple[tuple[str, str], ...] | None = None,
+) -> str:
+    chosen = variants or VARIANTS
+    by_variant = {key: _index(_load(results / f"{key}.jsonl")) for key, _label in chosen}
+    comparison = comparison_markdown(by_variant, chosen)
+    full = None
+    for key, _label in chosen:
+        if key == "no_skills":
+            continue
+        full = by_variant[key].get(trace_case)
+        if full is not None:
+            break
     if full is None:
-        raise SystemExit(f"Full-skills rollouts have no case {trace_case}.")
+        full = next(iter(by_variant.values())).get(trace_case)
+    if full is None:
+        raise SystemExit(f"Rollouts have no case {trace_case}.")
     trace = trace_markdown(full)
     comparison_path.parent.mkdir(parents=True, exist_ok=True)
     trace_path.parent.mkdir(parents=True, exist_ok=True)

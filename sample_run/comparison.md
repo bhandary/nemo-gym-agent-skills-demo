@@ -1,6 +1,6 @@
 > Recorded mock run, 2026-11-12. Model: `mock-it-lead`. NeMo Gym 0.7.0. Not a live NVIDIA or OpenAI call.
 
-| Ticket | No skills | Full skills | Priority matrix removed |
+| Ticket | No skills | All four skills | Without the priority matrix |
 | --- | --- | --- | --- |
 | TKT-2401 github-access | 0.4 reward, fail (Gym 0.4) | 1.0 reward, pass (Gym 1.0) | 0.4 reward, fail (Gym 0.4) |
 | TKT-2402 mfa-new-phone | 0.4 reward, fail (Gym 0.4) | 1.0 reward, pass (Gym 1.0) | 0.4 reward, fail (Gym 0.4) |
