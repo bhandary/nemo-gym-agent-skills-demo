@@ -1,1 +1,1 @@
-"""Northwind briefing page."""
+"""TicketNow briefing page."""

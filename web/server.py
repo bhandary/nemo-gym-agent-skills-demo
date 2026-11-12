@@ -1,4 +1,4 @@
-"""Briefing server for the Northwind Agent Skills demo.
+"""Briefing server for the TicketNow IT service desk demo.
 
 One process serves the page, the recorded sample, and, when asked, a real
 NeMo Gym run. Keys stay in the server environment.
@@ -40,14 +40,14 @@ def create_app(root: Path | None = None) -> FastAPI:
         yield
         app.state.runs.shutdown()
 
-    app = FastAPI(title="Northwind support desk", docs_url=None, redoc_url=None, lifespan=lifespan)
+    app = FastAPI(title="TicketNow IT Service Desk", docs_url=None, redoc_url=None, lifespan=lifespan)
     app.state.runs = manager
     app.state.root = repo
 
     @app.get("/health")
     @app.get("/healthz")
     def health() -> dict[str, str]:
-        return {"status": "ok", "service": "northwind-desk", "nemo_gym": nemo_gym_version()}
+        return {"status": "ok", "service": "ticketnow-it-desk", "nemo_gym": nemo_gym_version()}
 
     @app.get("/api/briefing")
     def api_briefing() -> dict:

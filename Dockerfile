@@ -26,17 +26,17 @@ COPY --from=ghcr.io/astral-sh/uv:0.13.7 /uv /uvx /usr/local/bin/
 
 WORKDIR /app
 
-RUN useradd --create-home --uid 10001 --shell /bin/bash northwind \
-    && chown northwind:northwind /app
+RUN useradd --create-home --uid 10001 --shell /bin/bash ticketnow \
+    && chown ticketnow:ticketnow /app
 
-COPY --chown=northwind:northwind . /app
+COPY --chown=ticketnow:ticketnow . /app
 
-USER northwind
-ENV HOME=/home/northwind
+USER ticketnow
+ENV HOME=/home/ticketnow
 
 RUN uv venv --python 3.13 /app/.venv \
     && uv pip install --python /app/.venv/bin/python "nemo-gym==0.7.0" pytest pyyaml \
-    && rm -rf /home/northwind/.cache/uv
+    && rm -rf /home/ticketnow/.cache/uv
 
 EXPOSE 8080
 CMD ["python", "-m", "web"]

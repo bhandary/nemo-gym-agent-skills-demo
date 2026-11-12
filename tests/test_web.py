@@ -22,7 +22,7 @@ def test_health() -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "ok"
-    assert body["service"] == "northwind-desk"
+    assert body["service"] == "ticketnow-it-desk"
     assert _client().get("/healthz").status_code == 200
 
 
@@ -30,32 +30,50 @@ def test_page_offers_run_demo() -> None:
     response = _client().get("/")
     assert response.status_code == 200
     assert "Run demo" in response.text
-    assert "Northwind Outfitters" in response.text
+    assert "TicketNow" in response.text
+    assert "IT service desk" in response.text
+    assert "Presenter notes" not in response.text
+    assert "five minutes" not in response.text.lower()
+    page_js = (ROOT / "web/static/app.js").read_text(encoding="utf-8")
+    assert "Presenter notes" not in page_js
+    assert "talk_track" not in page_js
     assert "text/html" in response.headers["content-type"]
 
 
 def test_briefing_lists_skills_and_tickets() -> None:
     body = _client().get("/api/briefing").json()
     assert [skill["name"] for skill in body["skills"]] == [
-        "escalation-playbook",
-        "refund-policy",
-        "close-the-ticket",
+        "security-first-response",
+        "ticket-classification",
+        "access-request-policy",
+        "priority-matrix",
     ]
-    refund = next(skill for skill in body["skills"] if skill["name"] == "refund-policy")
-    assert "70" not in refund["description"]
-    rate_card = next(doc for doc in refund["documents"] if doc["label"] == "Rate card")
-    assert "opened_damage_refund_percent: 70" in rate_card["markdown"]
+    matrix = next(skill for skill in body["skills"] if skill["name"] == "priority-matrix")
+    assert "P1" not in matrix["description"]
+    assert "72" not in matrix["description"]
+    card = next(doc for doc in matrix["documents"] if doc["label"] == "Priority matrix")
+    assert "aged_inquiry_hours: 72" in card["markdown"]
+    assert "P1" in card["markdown"]
     assert [ticket["ticket_id"] for ticket in body["tickets"]] == [
-        "T-441",
-        "T-442",
-        "T-443",
-        "T-444",
-        "T-445",
+        "TKT-2401",
+        "TKT-2402",
+        "TKT-2403",
+        "TKT-2404",
+        "TKT-2405",
+        "TKT-2406",
+        "TKT-2407",
+        "TKT-2408",
+        "TKT-2409",
+        "TKT-2410",
+        "TKT-2411",
+        "TKT-2412",
     ]
-    safety = next(ticket for ticket in body["tickets"] if ticket["ticket_id"] == "T-444")
-    assert "safety flag" in safety["glance"]
-    assert "escalate" in safety["outcome"].lower() or "person" in safety["outcome"].lower()
-    assert len(body["talk_track"]) >= 5
+    phishing = next(ticket for ticket in body["tickets"] if ticket["ticket_id"] == "TKT-2409")
+    assert "security signal" in phishing["glance"]
+    assert "P1" in phishing["outcome"]
+    inquiry = next(ticket for ticket in body["tickets"] if ticket["case_id"] == "aged-escalation")
+    assert "Inquiry" in inquiry["outcome"]
+    assert "talk_track" not in body
     assert body["modes"]["recorded"]["enabled"] is True
 
 
@@ -64,6 +82,28 @@ def test_live_mode_stays_off_without_a_key(monkeypatch: pytest.MonkeyPatch) -> N
     body = _client().get("/api/briefing").json()
     assert body["modes"]["live"]["enabled"] is False
     assert "POLICY_API_KEY" in body["modes"]["live"]["reason"]
+
+
+def test_live_mode_enables_for_the_openai_desk_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("POLICY_API_KEY", "sk-live-secret-value")
+    monkeypatch.setenv("POLICY_BASE_URL", "https://api.openai.com/v1")
+    monkeypatch.setenv("POLICY_MODEL_NAME", "gpt-4.1-mini")
+    monkeypatch.setenv("POLICY_MODEL_TYPE", "openai_model")
+    response = _client().get("/api/briefing")
+    assert "sk-live-secret-value" not in response.text
+    live = response.json()["modes"]["live"]
+    assert live["enabled"] is True
+    assert live["model_name"] == "gpt-4.1-mini"
+    assert live["endpoint_host"] == "api.openai.com"
+    assert live["model_type"] == "openai_model"
+    assert "gpt-4.1-mini" in live["detail"]
+    assert "api.openai.com" in live["detail"]
+    assert "openai_model" in live["detail"]
+    env = model_env("live")
+    assert env["POLICY_MODEL_TYPE"] == "openai_model"
+    assert env["POLICY_MODEL_NAME"] == "gpt-4.1-mini"
+    assert env["POLICY_BASE_URL"] == "https://api.openai.com/v1"
+    assert "sk-live-secret-value" in env["POLICY_API_KEY"]
 
 
 def test_live_mode_reports_the_model_without_the_key(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -79,33 +119,33 @@ def test_live_mode_reports_the_model_without_the_key(monkeypatch: pytest.MonkeyP
     assert live["endpoint_host"] == "integrate.api.nvidia.com"
 
 
-def test_recorded_sample_matches_the_talk_track() -> None:
+def test_recorded_sample_matches_the_it_desk() -> None:
     view = load_sample_view(ROOT)
     assert view["kind"] == "recorded"
     assert view["live_model"] is False
     assert "not a call to a live model" in view["source_label"].lower()
-    assert view["model"] == "mock-desk-associate"
+    assert view["model"] == "mock-it-lead"
     summary = {item["variant"]: item for item in view["comparison"]["summary"]}
     assert summary["no_skills"]["mean_reward"] == pytest.approx(0.40)
     assert summary["full_skills"]["mean_reward"] == pytest.approx(1.00)
-    assert summary["without_refund_policy"]["mean_reward"] == pytest.approx(0.64)
+    assert summary["without_priority_matrix"]["mean_reward"] == pytest.approx(0.50)
     assert summary["no_skills"]["correct"] == 0
-    assert summary["full_skills"]["correct"] == 5
-    assert summary["without_refund_policy"]["correct"] == 2
-    kettle = next(row for row in view["comparison"]["tickets"] if row["case_id"] == "dented-kettle")
-    rewards = {cell["variant"]: cell["reward"] for cell in kettle["cells"]}
+    assert summary["full_skills"]["correct"] == 12
+    assert summary["without_priority_matrix"]["correct"] == 2
+    offboard = next(row for row in view["comparison"]["tickets"] if row["case_id"] == "offboard-friday")
+    rewards = {cell["variant"]: cell["reward"] for cell in offboard["cells"]}
     assert rewards["no_skills"] == pytest.approx(0.4)
     assert rewards["full_skills"] == pytest.approx(1.0)
-    assert rewards["without_refund_policy"] == pytest.approx(0.4)
-    safety = next(row for row in view["comparison"]["tickets"] if row["case_id"] == "safety-blender")
-    safety_rewards = {cell["variant"]: cell["passed"] for cell in safety["cells"]}
-    assert safety_rewards["without_refund_policy"] is True
-    full = view["traces"]["dented-kettle"]["full_skills"]
+    assert rewards["without_priority_matrix"] == pytest.approx(0.4)
+    phishing = next(row for row in view["comparison"]["tickets"] if row["case_id"] == "phishing-click")
+    phishing_passed = {cell["variant"]: cell["passed"] for cell in phishing["cells"]}
+    assert phishing_passed["without_priority_matrix"] is True
+    full = view["traces"]["offboard-friday"]["full_skills"]
     titles = [step["title"] for step in full["steps"]]
-    assert "Opened escalation-playbook" in titles
-    assert "Read references/rate-card.md" in titles
+    assert "Opened security-first-response" in titles
+    assert "Read references/priority-matrix.md" in titles
     assert any(step["kind"] == "Reward" and step["score"]["reward"] == pytest.approx(1.0) for step in full["steps"])
-    bare = view["traces"]["dented-kettle"]["no_skills"]
+    bare = view["traces"]["offboard-friday"]["no_skills"]
     assert all(step["kind"] != "Skill" for step in bare["steps"])
     assert bare["steps"][-1]["score"]["reward"] == pytest.approx(0.4)
 
@@ -168,7 +208,7 @@ def test_env_yaml_reuses_venvs_and_turns_reasoning_parser_off(tmp_path: Path) ->
         {
             "POLICY_BASE_URL": "http://127.0.0.1:43117/v1",
             "POLICY_API_KEY": "mock",
-            "POLICY_MODEL_NAME": "mock-desk-associate",
+            "POLICY_MODEL_NAME": "mock-it-lead",
             "POLICY_MODEL_TYPE": "vllm_model",
             "POLICY_REASONING_PARSER": "false",
         },
@@ -188,7 +228,7 @@ def test_mock_env_does_not_copy_a_real_key(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setenv("POLICY_MODEL_NAME", "should-not-leak")
     env = model_env("mock")
     assert env["POLICY_API_KEY"] == "mock"
-    assert env["POLICY_MODEL_NAME"] == "mock-desk-associate"
+    assert env["POLICY_MODEL_NAME"] == "mock-it-lead"
     blob = " ".join(env.values())
     assert "sk-super-secret-value" not in blob
     assert "should-not-leak" not in blob

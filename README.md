@@ -1,6 +1,6 @@
-# Northwind support desk: a NeMo Gym Agent Skills demo
+# TicketNow IT service desk: a NeMo Gym Agent Skills demo
 
-A support lead can watch this in five minutes. The same five customer tickets are scored three times: with no operational skills, with the full skill set, and with the refund skill removed. NeMo Gym records a reward for every ticket. The comparison is the point.
+An IT support lead can watch this in a few minutes. The same twelve employee tickets are scored three times: with no operational skills, with the full skill set, and with the priority matrix removed. NeMo Gym records a reward for every ticket. The comparison is the point.
 
 Open the briefing page if you are presenting without a terminal. It loads the recorded sample immediately, and it can also start the real NeMo Gym run.
 
@@ -12,6 +12,8 @@ Then open http://127.0.0.1:43123. `make ui` is the same command. The page listen
 
 The first time you run the terminal demo, NeMo Gym builds a virtualenv for each server. That can take several minutes. After that, the three evaluations themselves are short. If you are about to walk into the room and the servers are still installing, stay on Recorded sample in the briefing page, or open [sample_run/comparison.md](sample_run/comparison.md). That folder is a recorded mock run, labeled as such.
 
+The Railway service name is unchanged. This repository changes the desk the service presents.
+
 ## What NeMo Gym is
 
 [NeMo Gym](https://github.com/NVIDIA-NeMo/Gym) evaluates agents in an environment. You give it tasks, an agent, and a verifier. It runs each task, asks the environment for a reward, and writes the rollouts to a JSONL file.
@@ -20,13 +22,13 @@ This demo uses NeMo Gym **0.7.0** from PyPI. It does not need a GPU. The policy 
 
 ## What Agent Skills are, and why they matter
 
-An Agent Skill is a directory with a `SKILL.md` file. The file starts with YAML frontmatter (`name`, `description`) and then the instructions. Extra files, such as a rate card, live next to it. The open spec is [agentskills.io](https://agentskills.io/specification). NeMo Gym's contract is documented at [Agent Skills](https://docs.nvidia.com/nemo/gym/agent-server/agent-skills).
+An Agent Skill is a directory with a `SKILL.md` file. The file starts with YAML frontmatter (`name`, `description`) and then the instructions. Extra files, such as a priority matrix, live next to it. The open spec is [agentskills.io](https://agentskills.io/specification). NeMo Gym's contract is documented at [Agent Skills](https://docs.nvidia.com/nemo/gym/agent-server/agent-skills).
 
 NeMo Gym does **not** read the skill and paste it into the prompt. A skill directory is a run-level knob:
 
 ```bash
-gym eval run --no-serve --agent northwind_desk_skills_agent \
-  --input resources_servers/northwind_desk/data/tasks.jsonl \
+gym eval run --no-serve --agent ticketnow_desk_skills_agent \
+  --input resources_servers/ticketnow_desk/data/tasks.jsonl \
   --output results/full_skills.jsonl \
   +skills.path=skills/full
 ```
@@ -37,43 +39,59 @@ The same JSONL is used for every variant. Nothing in the task file says which sk
 2. Copy the directory with `nemo_gym.skills.stage_skills` into a per-request folder.
 3. Discover the skills the way the spec describes: name and description first, the full `SKILL.md` only when the model activates the skill, and a referenced file only when the instructions ask for it.
 
-That last step is why skills are useful to a leadership audience. The model is not handed the whole policy manual on every ticket. It is told which playbooks exist, and it has to open the right one. Take the playbook away and the score drops, even though the tickets and the tools did not change.
+That last step is why skills are useful to a leadership audience. The model is not handed the whole policy manual on every ticket. It is told which playbooks exist, and it has to open the right one. Take the priority matrix away and the score drops, even though the tickets and the tools did not change.
 
-The built-in Claude Code and Codex agents do step 3 with those products' own skill folders. `simple_agent` ignores skills. This demo's desk agent is a small OpenAI-compatible adapter that does the three steps above, so the demo can point at NVIDIA's API catalog or OpenAI without those CLIs.
+The built-in Claude Code and Codex agents do step 3 with those products' own skill folders. `simple_agent` ignores skills. This demo's desk agent is a small OpenAI-compatible adapter that does the three steps above, so the demo can point at OpenAI's Responses API or NVIDIA's API catalog without those CLIs.
 
 ## The story
 
-Northwind Outfitters runs a support desk. An associate gets one ticket, looks up the order and the ticket, and files a single resolution. The tools return facts. They do not return the company rule.
+TicketNow runs an IT service desk. A lead gets one employee ticket, looks up the requester and the ticket, and files a single triage. The tools return facts. They do not return the company rule. The intake tag on the ticket, Incident, Request, or Inquiry, is what routing starts from. The employee's wording is not that tag.
 
-Three skills live in [skills/full](skills/full):
+Four skills live in [skills/full](skills/full):
 
 | Skill | What it teaches |
 | --- | --- |
-| `escalation-playbook` | Safety flags and merchandise over $200 go to a person. Check this before any refund. |
-| `refund-policy` | Ordinary refunds. The windows, the 70 percent damage rate, and the disposition codes are only in `references/rate-card.md`. |
-| `close-the-ticket` | Look up the order and the ticket before filing. Use the exact `file_resolution` fields. |
+| `security-first-response` | Check this before anything else. A phishing click, a lost or stolen laptop, and a compromised account are P1 and go to security operations immediately. The codes are in the playbook. |
+| `ticket-classification` | Copy the intake tag and category from the ticket, then map the category to an assignment group. The group codes are only here. |
+| `access-request-policy` | Access requests need manager approval. A lockout is a credential reset, not a new grant. Offboarding disables accounts the same day and collects equipment. Onboarding provisions both. |
+| `priority-matrix` | The priority levels and the 72-hour inquiry threshold are only in `references/priority-matrix.md`. |
 
-`skills/without_refund_policy` is the same set with `refund-policy` removed. The demo regenerates it from the full set at the start of every run, so the two copies of the shared skills cannot drift.
+`skills/without_priority_matrix` is the same set with `priority-matrix` removed. The demo regenerates it from the full set at the start of every run, so the shared skills cannot drift.
 
-Five tickets, each of which wants a different rule:
+Twelve tickets, each of which wants a different rule. The handoff never contains the priority, the assignment group, or the action codes.
 
 | Ticket | What is going on | Correct outcome |
 | --- | --- | --- |
-| T-441 dented kettle | Opened, damaged in transit, day 9, $80 merchandise | `damage_window_partial`, refund $56.00, no escalation |
-| T-442 jacket | Still sealed, day 20, $120 | `full_refund_unopened`, refund $120.00 |
-| T-443 shoes | Worn, day 40, gold customer | `goodwill_replacement`, refund $0 |
-| T-444 blender | Customer reports a shock. Safety flag is on the ticket, not in the email. | `escalate_safety`, refund $0, escalate |
-| T-445 tent | Still sealed, but merchandise is $260. The price is not in the email. | `escalate_high_value`, refund $0, escalate |
+| TKT-2401 GitHub access | Request for an application | Request, P4, Identity and access, manager approval |
+| TKT-2402 MFA on a new phone | Sign-in broke. This is an incident, not a new grant | Incident, P3, Identity and access, reset credentials |
+| TKT-2403 VPN | Connects, then internal sites fail. Monitoring shows a shared outage | Incident, P2, Network operations, restore service |
+| TKT-2404 Mailbox full | Outlook will not send | Incident, P3, Collaboration, restore service |
+| TKT-2405 Laptop will not turn on | Hardware is down before a meeting | Incident, P3, Endpoint support, dispatch a technician |
+| TKT-2406 Install VS Code | Software request | Request, P4, Application support, fulfill from the catalog |
+| TKT-2407 New hire Monday | Joiner needs a laptop and accounts | Request, P3, Lifecycle, provision accounts and a laptop |
+| TKT-2408 Offboard Friday | Last day. Disable accounts and collect equipment | Request, P2, Lifecycle, same-day disable and collect equipment |
+| TKT-2409 Clicked a suspicious link | Security signal is on the ticket, not spelled out as a code in the note | Incident, P1, Security operations, isolate the session and reset credentials |
+| TKT-2410 Laptop left in a rideshare | Same class of security incident | Incident, P1, Security operations, wipe the device and reset credentials |
+| TKT-2411 Phone will not enroll | MDM enrollment failed | Incident, P3, Mobile devices, reset enrollment |
+| TKT-2412 Three-day escalation | Inquiry. The note says "three days". The ticket has been open 80 hours | Inquiry, P2, Service desk, status update |
 
-The customer's message never contains the disposition code, the 70 percent, or the $200 line. A model that only reads the email cannot know them.
+The verifier scores the last `file_triage` call:
 
-The verifier scores the last `file_resolution` call:
-
-- **procedure** is 1 when the agent looked up this order and this ticket before filing.
-- **decision** is 1 when the disposition, the refund (within a tenth of a cent), and the escalate flag match the policy.
+- **procedure** is 1 when the lead looked up this requester and this ticket before filing.
+- **decision** is 1 when the type, category, priority, assignment group, and actions match the policy. Spacing and capitalization are ignored. The action list may be in any order.
 - **reward** is `0.4 * procedure + 0.6 * decision`.
 
-A busy agent that looks things up and then guesses the money still loses most of the point. Wrong answers are real scores. They are not masked out.
+A lead who looks things up and then guesses the priority still loses most of the point. Wrong answers are real scores. They are not masked out.
+
+On the recorded mock run the means are:
+
+| Configuration | Mean reward | Correct decisions |
+| --- | --- | --- |
+| No skills | 0.40 | 0 / 12 |
+| Full skills | 1.00 | 12 / 12 |
+| Priority matrix removed | 0.50 | 2 / 12 |
+
+The two that still pass without the matrix are the phishing click and the lost laptop. That playbook already names P1 and the security queue. Every other ticket keeps the lookup credit and misses the priority.
 
 ## Architecture
 
@@ -86,7 +104,7 @@ flowchart LR
   agent["Desk skills agent"]
   model["Model server\nvllm_model or openai_model"]
   upstream["OpenAI-compatible endpoint\nor the local mock"]
-  desk["Northwind resources server\ntools and verify"]
+  desk["TicketNow resources server\ntools and verify"]
   sample["sample_run"]
 
   page -->|"Recorded sample"| sample
@@ -96,17 +114,17 @@ flowchart LR
   env -->|"raw /run body"| agent
   agent -->|"stage_skills, then /v1/responses"| model
   model --> upstream
-  agent -->|"lookup_order, lookup_ticket, file_resolution"| desk
+  agent -->|"lookup_requester, lookup_ticket, file_triage"| desk
   desk -->|"reward"| agent
   agent --> eval
   eval --> page
 ```
 
-`vllm_model` is the adapter for chat-completions endpoints, including `https://integrate.api.nvidia.com/v1`. It translates Gym's Responses API to `POST {base_url}/chat/completions`. `openai_model` posts to `{base_url}/responses` and is the one to use for OpenAI's Responses API. Pointing `openai_model` at a chat-only host returns 404.
+`openai_model` posts to `{base_url}/responses` and is the adapter for OpenAI's Responses API, including `gpt-4.1-mini` at `https://api.openai.com/v1`. `vllm_model` is the adapter for chat-completions endpoints, including `https://integrate.api.nvidia.com/v1`. It translates Gym's Responses API to `POST {base_url}/chat/completions`. Pointing `openai_model` at a chat-only host returns 404.
 
 ## Setup
 
-Python 3.13.14 and [uv](https://docs.astral.sh/uv/) are required. NeMo Gym 0.7.0 installs them into `.venv` on the first run. No GPU.
+Python 3.13 and [uv](https://docs.astral.sh/uv/) are required. NeMo Gym 0.7.0 installs them into `.venv` on the first run. No GPU.
 
 ```bash
 cp .env.example .env
@@ -122,21 +140,21 @@ The script writes `env.yaml` from the environment. That file holds the API key, 
 ## What the one command does
 
 1. Creates `.venv` and installs `nemo-gym==0.7.0` if needed.
-2. Regenerates the five-task JSONL and the missing-skill directory.
+2. Regenerates the task JSONL and the missing-skill directory.
 3. Runs the unit tests.
 4. Starts the mock on port 43117 when no API key is set, or uses your endpoint.
 5. Starts the head server, the resources server, the desk agent, the model server, and the environment-server relay. The first start installs a virtualenv per server under `.gym_venvs/`.
 6. Waits until `http://127.0.0.1:11000/readyz` returns success.
-7. Runs the five tickets three times and writes `results/`.
-8. Prints the comparison table and a trace of the dented-kettle episode.
+7. Runs the twelve tickets three times and writes `results/`.
+8. Prints the comparison table and a trace of the Friday offboarding episode.
 
 `NEMO_GYM_EXTRA_ROOTS` is set to the repo root before the servers start. The agent process's working directory is its own server folder, so a relative `skills/full` would not resolve there without this. Gym does not set it for a wheel install.
 
 ## Walkthrough, if you want to narrate the files first
 
-1. Open [skills/full/refund-policy/SKILL.md](skills/full/refund-policy/SKILL.md). The frontmatter says when to use the skill. The body says to read the rate card. It does not contain the numbers.
-2. Open [skills/full/refund-policy/references/rate-card.md](skills/full/refund-policy/references/rate-card.md). The windows, the percent, and the disposition codes are here.
-3. Open one line of [resources_servers/northwind_desk/data/tasks.jsonl](resources_servers/northwind_desk/data/tasks.jsonl). The user message is the customer's email. The tools are lookups and `file_resolution`. There is no answer key.
+1. Open [skills/full/priority-matrix/SKILL.md](skills/full/priority-matrix/SKILL.md). The frontmatter says when to use the skill. The body says to read the matrix. It does not contain the levels.
+2. Open [skills/full/priority-matrix/references/priority-matrix.md](skills/full/priority-matrix/references/priority-matrix.md). The priorities, the 72-hour line, and the security note are here.
+3. Open one line of [resources_servers/ticketnow_desk/data/tasks.jsonl](resources_servers/ticketnow_desk/data/tasks.jsonl). The user message is the handoff. The tools are lookups and `file_triage`. There is no answer key.
 4. Run `./run_demo.sh` (or `make demo`).
 5. Read `results/comparison.md`, then `results/trace.md`.
 
@@ -144,12 +162,11 @@ The script writes `env.yaml` from the environment. That file holds the API key, 
 
 `./run_ui.sh` serves one page from the same repository. Nothing in the browser asks for an API key.
 
-The page has four parts:
+The page has three parts:
 
-1. The three skills, which you can open, including the refund rate card.
-2. The five tickets, with the handoff the associate sees and the outcome the policy requires.
-3. **Run demo**, which scores the tickets three times and draws the comparison. While a Gym run is in progress the page shows which step it is on.
-4. An episode trace. Pick a ticket and step through it: skill opened, rate card read, order and ticket looked up, resolution filed, reward.
+1. The four skills, which you can open, including the priority matrix.
+2. The twelve tickets, with the handoff the lead sees and the outcome the policy requires.
+3. **Run demo**, which scores the tickets three times and draws the comparison. While a Gym run is in progress the page shows which step it is on. Under the scores, pick a ticket and step through the episode: skill opened, matrix read, requester and ticket looked up, triage filed, reward.
 
 Screenshots of that page are in [docs/screenshots/](docs/screenshots/).
 
@@ -158,34 +175,34 @@ The mode selector has three settings:
 | Mode | What it does |
 | --- | --- |
 | Recorded sample | Replays [sample_run/](sample_run/) immediately. Always available. Labeled as mock output. |
-| Mock model | Starts NeMo Gym and the local `mock-desk-associate` model, then scores the five tickets three times. Labeled as not a live model. |
-| Live model | Enabled only when the server process already has `POLICY_API_KEY`, `POLICY_BASE_URL`, and `POLICY_MODEL_NAME` (or `POLICY_MODEL`). The page shows the model name and the host. It does not show the key, and it has nowhere to type one. |
+| Mock model | Starts NeMo Gym and the local `mock-it-lead` model, then scores the twelve tickets three times. Labeled as not a live model. |
+| Live model | Enabled only when the server process already has `POLICY_API_KEY`, `POLICY_BASE_URL`, and `POLICY_MODEL_NAME` (or `POLICY_MODEL`). The page shows the model name, the host, and the adapter (`openai_model` or `vllm_model`). It does not show the key, and it has nowhere to type one. |
 
-Recorded sample is what you want on screen when you walk into the room. Mock model is the same pipeline as `./run_demo.sh` without a key. Live model is that pipeline pointed at your endpoint. The CLI still works, and it does not overwrite `sample_run/`.
+Recorded sample is what you want on screen when you walk into the room. Mock model is the same pipeline as `./run_demo.sh` without a key. Live model is that pipeline pointed at your endpoint. With `POLICY_MODEL_TYPE=openai_model`, `POLICY_BASE_URL=https://api.openai.com/v1`, and `POLICY_MODEL_NAME=gpt-4.1-mini`, Live model is available and the page names that model. The CLI still works, and it does not overwrite `sample_run/`.
 
 Run one Gym collection at a time. The briefing page and `./run_demo.sh` both use port 11000.
 
-## Five-minute talk track
+## Talk track
 
-Use the briefing page. The terminal walkthrough above is the same story if you want to show the files.
+The page itself does not carry speaker notes. Use this if you are narrating.
 
-**0:00.** The table is already on screen. "This is NeMo Gym scoring a support agent. Same tickets, same tools, same grader. The only thing we change is which playbooks the agent is allowed to open. These numbers are the recorded sample, from the mock associate, so we are not waiting on a network."
+**Open.** "This is NeMo Gym scoring an IT service desk lead at TicketNow. Same twelve tickets, same tools, same grader. The only change is which playbooks the lead is allowed to open. These numbers are the recorded sample, from the mock lead, so we are not waiting on a network."
 
-**0:40.** Open the three skills. "The refund numbers are not in the handoff. They are in the rate card. The model sees the name of the playbook first, and the rate card only if it opens it."
+**Skills.** Open the four skills. "The priority levels are not in the handoff and not in the skill's opening description. They are in the matrix, which the playbook tells the lead to read. Security incidents are named in their own playbook, so they still have an answer when the matrix is gone."
 
-**1:30.** Select ticket T-444. "The handoff says the blender shocked them. The safety flag is a field on the ticket. The tent is the same kind of surprise: the price is on the order, not in the note."
+**Tickets.** Select the phishing ticket, then the Friday offboard. "The note says they clicked a link. The security signal is a field on the ticket. The offboard note says Friday. The same-day actions are in the access playbook, and P2 is in the matrix. The three-day inquiry is the same shape: the note says three days, the threshold is 72 hours on the ticket's clock."
 
-**2:20.** Leave the mode on Recorded sample and hit Run demo if you only need to reload the table. Switch to Mock model if you want the room to watch NeMo Gym score the tickets. Say out loud that the mock is not NVIDIA or OpenAI. Switch to Live model only when the server was started with a key.
+**Run.** Leave the mode on Recorded sample, or switch to Mock model if you want the room to watch NeMo Gym score the tickets. Say out loud that the mock is not OpenAI. Switch to Live model only when the server was started with a key. On the deployed desk that key points at `gpt-4.1-mini`.
 
-**3:20.** Read the three averages. "Without the playbooks the associate still looks up the order and the ticket, so each ticket keeps 0.4, and every decision is wrong. With the skills, every ticket matches. Reward is 1. Take only the refund skill away and the two escalation tickets still pass. The three ordinary refunds fail."
+**Scores.** "Without the playbooks the lead still looks up the requester and the ticket, so each ticket keeps 0.4, and every decision is wrong. With the skills, every ticket matches. Reward is 1. Take only the priority matrix away and the two security incidents still pass. The other ten fail. Mean reward is 0.50."
 
-**4:20.** Open the dented-kettle trace on Full skills and press Next. "The associate opens the escalation playbook, opens the refund skill, reads the rate card, looks up the order, and files a $56 partial refund. The verifier agrees. The skills hash is Gym's record of which files were on the run."
+**Trace.** Open the Friday offboard on Full skills and press Next. "The lead opens security first, opens classification, opens the access policy, reads the matrix, looks up the employee, and files a P2 lifecycle triage with same-day disable. The verifier agrees. The skills hash is Gym's record of which files were on the run."
 
-**4:50.** "To change the policy, we edit the skill and the verifier together. The tickets stay the same, so the comparison stays fair."
+**Close.** "To change the policy, edit the skill and the verifier together. The tickets stay the same, so the comparison stays fair."
 
 ## Deploy to Railway
 
-The container is one service. It binds `0.0.0.0:$PORT` (Railway sets `PORT`; the image default is 8080), serves the briefing page, and answers `GET /health`. `railway.json` sets the start command to `python -m web` and the health check path to `/health`. With no environment variables, Recorded sample works immediately. Mock model works too: the first run installs NeMo Gym's server virtualenvs, which needs outbound network and a few minutes. Later runs reuse them. Live model turns on only when the variables below are set on the service.
+The container is one service. It binds `0.0.0.0:$PORT` (Railway sets `PORT`; the image default is 8080), serves the briefing page, and answers `GET /health`. `railway.json` sets the start command to `python -m web` and the health check path to `/health`. The Railway service name is left as it is. With no environment variables, Recorded sample works immediately. Mock model works too: the first run installs NeMo Gym's server virtualenvs, which needs outbound network and a few minutes. Later runs reuse them. Live model turns on only when the variables below are set on the service.
 
 Those server virtualenvs are not baked into the image. Prebuilding them copied Ray and the model server's dev extra and made the image too large for a typical Railway deploy. Recorded sample does not start Ray or install anything.
 
@@ -203,23 +220,23 @@ That builds the Dockerfile and deploys it. The CLI signs you in if it needs to, 
 railway domain
 ```
 
-Open that URL. `GET /health` should return `{"status":"ok"}`.
+Open that URL. `GET /health` should return `{"status":"ok","service":"ticketnow-it-desk",...}`.
 
 ### GitHub
 
-1. Push this repository to GitHub.
-2. In [Railway](https://railway.com), create a project and choose **Deploy from GitHub repo**. Select the repository and the branch.
+1. Push this repository to GitHub. Railway redeploys from `main`.
+2. In [Railway](https://railway.com), the existing project already deploys this repository. Do not rename the service.
 3. Railway reads `railway.json`, builds the Dockerfile, and starts `python -m web`. The health check path is `/health`.
-4. Generate a domain on the service. Open it.
+4. Generate a domain on the service if it does not already have one. Open it.
 
 Set variables in the Railway service settings, not in the browser. Leave them empty to present from the recorded sample.
 
 | Variable | What to put |
 | --- | --- |
 | `POLICY_API_KEY` | Secret for the endpoint. Empty, or a placeholder such as `changeme`, keeps Live model off. |
-| `POLICY_BASE_URL` | For the NVIDIA API catalog: `https://integrate.api.nvidia.com/v1`. |
-| `POLICY_MODEL_NAME` | Model id, for example `meta/llama-3.1-8b-instruct`. `POLICY_MODEL` is accepted as an alias. |
-| `POLICY_MODEL_TYPE` | `vllm_model` for chat-completions hosts, including NVIDIA's catalog. `openai_model` for OpenAI's Responses API. The first run of either type installs that adapter's virtualenv and needs network access in the container. |
+| `POLICY_BASE_URL` | For the live desk: `https://api.openai.com/v1`. For the NVIDIA API catalog: `https://integrate.api.nvidia.com/v1`. |
+| `POLICY_MODEL_NAME` | For the live desk: `gpt-4.1-mini`. `POLICY_MODEL` is accepted as an alias. |
+| `POLICY_MODEL_TYPE` | `openai_model` for OpenAI's Responses API, which is what `gpt-4.1-mini` uses. `vllm_model` for chat-completions hosts, including NVIDIA's catalog. The first run of either type installs that adapter's virtualenv and needs network access in the container. |
 | `POLICY_REASONING_PARSER` | Leave unset. Set `true` only for a reasoning model behind `vllm_model`. |
 | `DEMO_TEMPERATURE` | Optional. Defaults to `0`. |
 | `PORT` | Railway sets this. The process binds to it. |
@@ -229,45 +246,40 @@ A build of this Dockerfile is about 1.8 GB. The per-server virtualenvs are creat
 A local image of the same container:
 
 ```bash
-docker build -t northwind-desk .
-docker run --rm --memory=3g --shm-size=256m -p 43123:8080 northwind-desk
+docker build -t ticketnow-it-desk .
+docker run --rm --memory=3g --shm-size=256m -p 43123:8080 ticketnow-it-desk
 ```
 
-Open http://127.0.0.1:43123. The process inside the container is on port 8080. To point that container at a live model, pass the variables with `-e` and do not bake them into the image.
+Open http://127.0.0.1:43123. The process inside the container is on port 8080. To point that container at a live model, pass the variables with `-e` and do not bake them into the image. For the OpenAI desk:
 
-## Five-minute talk track (terminal)
+```bash
+docker run --rm --memory=3g --shm-size=256m -p 43123:8080 \
+  -e POLICY_API_KEY \
+  -e POLICY_BASE_URL=https://api.openai.com/v1 \
+  -e POLICY_MODEL_NAME=gpt-4.1-mini \
+  -e POLICY_MODEL_TYPE=openai_model \
+  ticketnow-it-desk
+```
 
-**0:00.** "This is NeMo Gym scoring a support agent. Same tickets, same tools, same grader. The only thing we change is which playbooks the agent is allowed to open."
-
-**0:40.** Show the three skills. "The refund numbers are not in the prompt. They are in a file the skill tells the agent to read. That is progressive disclosure: the model sees the name of the playbook first, and the rate card only if it opens it."
-
-**1:30.** Show ticket T-441. "Maya says the kettle arrived dented. She does not say the refund is 70 percent of merchandise, and she does not say shipping is excluded. The safety case is sharper: the email says the blender shocked them, but the safety flag is a field on the ticket. The agent has to look it up."
-
-**2:20.** Run `make demo`, or, if the first-time install is still going, open the recorded table. "Three runs. No skills. All three skills. All skills except the refund policy."
-
-**3:20.** Read the table. "Without the playbooks the agent still looks up the order and the ticket, so it gets partial credit. It then files a generic refund for the full merchandise amount. That is the wrong decision on every ticket, including the safety case. Reward is 0.4 out of 1. With the skills, every ticket matches the policy. Reward is 1. Take only the refund skill away and the two escalation tickets still pass, because that playbook is still there. The three ordinary refunds fail."
-
-**4:20.** Open the dented-kettle trace. "You can see the agent activate the escalation playbook, activate the refund skill, read the rate card, look up the order, and file `damage_window_partial` for $56. The verifier agrees. The `skills_ref` hash is Gym's record of exactly which files were on this run."
-
-**4:50.** "To change the policy, we edit the skill and the verifier together. The task file stays the same, so the comparison stays fair."
+Live model on the page is then available. The key stays in the environment.
 
 ## How to extend it with a new skill
 
-1. Add `skills/full/shipping-refund/SKILL.md` with `name: shipping-refund` matching the directory, a description that says when to use it, and `metadata.version`.
-2. Put any numbers in `references/`, and point the `SKILL.md` body at that file. Keep the numbers out of the description. The description is the only text the agent sees before it activates the skill.
-3. Teach [resources_servers/northwind_desk/policy.py](resources_servers/northwind_desk/policy.py) the same rule in `decide`, and add a ticket to `CASES` whose user text does not reveal the new number.
+1. Add `skills/full/change-window/SKILL.md` with `name: change-window` matching the directory, a description that says when to use it, and `metadata.version`.
+2. Put any codes in `references/`, and point the `SKILL.md` body at that file. Keep the codes out of the description. The description is the only text the agent sees before it activates the skill.
+3. Teach [resources_servers/ticketnow_desk/policy.py](resources_servers/ticketnow_desk/policy.py) the same rule in `decide`, and add a ticket to `CASES` whose user text does not reveal the new code.
 4. The next `./run_demo.sh` regenerates `tasks.jsonl` and the missing-skill variant. Add an assertion in [tests/test_demo.py](tests/test_demo.py) for the new ticket.
-5. If the mock should follow the new skill, teach [demo/mock_model.py](demo/mock_model.py) to read the new file the same way it reads the rate card. The mock parses skill text. It does not import `policy.decide`. A skill you forget to load changes the score.
+5. If the mock should follow the new skill, teach [demo/mock_model.py](demo/mock_model.py) to read the new file the same way it reads the priority matrix. The mock parses skill text. It does not import `policy.decide`. A skill you forget to load changes the score.
 
 ## Recorded sample
 
-[sample_run/](sample_run/) is a completed mock run committed so a presentation still has a table if the live call fails. The manifest names the model `mock-desk-associate` and NeMo Gym 0.7.0. It is not output from NVIDIA or OpenAI.
+[sample_run/](sample_run/) is a completed mock run committed so a presentation still has a table if the live call fails. The manifest names the model `mock-it-lead` and NeMo Gym 0.7.0. It is not output from OpenAI or NVIDIA.
 
 A live run with your key writes `results/` and does not overwrite `sample_run/`.
 
 ## Tests
 
-`make test` covers the policy, the skill files, path checks on `read_skill_file`, the mock's with-and-without-skills behavior, the comparison table, the mock HTTP server, and the briefing page's recorded-sample API. Those tests do not start NeMo Gym. `./run_demo.sh` runs them and then the real Gym collection.
+`make test` covers the policy, the skill files, path checks on `read_skill_file`, the mock's with-and-without-skills behavior, the comparison table, the mock HTTP server, and the briefing page. The page tests check that Live mode stays off without a key and turns on for `openai_model` at `https://api.openai.com/v1` with `gpt-4.1-mini`. Those tests do not start NeMo Gym and do not call OpenAI. `./run_demo.sh` runs them and then the real Gym collection.
 
 ## Limitations of this demo, and of NeMo Gym 0.7.0
 
@@ -278,9 +290,9 @@ A live run with your key writes `results/` and does not overwrite `sample_run/`.
 - A relative `+skills.path` is resolved from the agent process's working directory, then from `NEMO_GYM_EXTRA_ROOTS`. A wheel install does not set that variable for you. The demo exports the repo root.
 - Gym 0.7.0 will not accept `+skills.path` on a materialized task row. These tasks are flat `responses_create_params` rows for that reason.
 - The first `gym env start` installs server virtualenvs, including NeMo Gym's dev extra for the built-in model server. Later runs reuse `.gym_venvs/`.
-- The mock is deterministic and only correct because it parses the skill files. A real model can ignore a skill, misread the rate card, or fail a tool call. That is the measurement you want from a live key, and it will not match the mock table.
-- Temperature defaults to 0. Some endpoints reject that. Set `DEMO_TEMPERATURE` in `.env` if yours does.
-- Rewards grade the filed decision, not the prose of the customer message.
+- The mock is deterministic and only correct because it parses the skill files. A real model can ignore a skill, misread the matrix, or fail a tool call. That is the measurement you want from a live key, and it will not match the mock table.
+- Temperature defaults to 0. Some endpoints reject that. `gpt-4.1-mini` accepts 0. Set `DEMO_TEMPERATURE` in `.env` if yours does not.
+- Rewards grade the filed triage, not the prose of the employee message. The grader accepts a different capitalization and a different action order. It does not accept a different code.
 - The briefing page and `./run_demo.sh` both collect through port 11000. Run one of them at a time.
 - Mock model and Live model start Ray inside the same machine as the page. The container limits Ray's object store so a modest service can boot. If Ray still cannot start, the page says so. Recorded sample does not start Ray, and it stays available.
 - The image ships the `gym` command and the recorded sample. It does not ship the per-server virtualenvs. The first Mock model or Live model run in a fresh container installs them and needs network access. `vllm_model` and `openai_model` each install their own adapter virtualenv.

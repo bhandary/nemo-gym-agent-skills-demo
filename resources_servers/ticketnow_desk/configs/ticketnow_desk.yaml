@@ -1,0 +1,29 @@
+ticketnow_desk:
+  resources_servers:
+    ticketnow_desk:
+      entrypoint: app.py
+      domain: agent
+      verified: false
+      description: TicketNow IT service desk. Facts from tools, reward from company policy.
+
+ticketnow_desk_skills_agent:
+  responses_api_agents:
+    desk_skills_agent:
+      entrypoint: app.py
+      resources_server:
+        type: resources_servers
+        name: ticketnow_desk
+      model_server:
+        type: responses_api_models
+        name: policy_model
+      # Four skills, one reference read, two lookups, the filing, and a live
+      # model that sometimes spends a turn restating the plan.
+      max_steps: 18
+
+ticketnow_desk_environment_server:
+  environment_servers:
+    legacy_agent:
+      entrypoint: app.py
+      agent_server:
+        type: responses_api_agents
+        name: ticketnow_desk_skills_agent

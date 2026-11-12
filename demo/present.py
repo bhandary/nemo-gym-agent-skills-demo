@@ -1,4 +1,4 @@
-"""JSON view of a finished three-way Northwind run.
+"""JSON view of a finished three-way TicketNow run.
 
 The markdown report and this payload share one grader, so the briefing page
 and ``results/comparison.md`` cannot drift apart.
@@ -11,8 +11,8 @@ from pathlib import Path
 from typing import Any
 
 from demo.report import VARIANTS, _case_for, _grade, _index, _load
-from demo.story import money, outcome_line, plain_disposition, ticket_title
-from resources_servers.northwind_desk.policy import CASES
+from demo.story import outcome_line, ticket_title
+from resources_servers.ticketnow_desk.policy import CASES
 
 
 def load_by_variant(results: Path) -> dict[str, dict[str, dict[str, Any]]]:
@@ -122,49 +122,46 @@ def _describe_call(name: str, args: dict[str, Any]) -> tuple[str, str, str]:
         return (
             "Reference",
             f"Read {path}",
-            "The playbook told the associate to open this file. The refund numbers live here, not in the ticket.",
+            "The playbook told the lead to open this file. The priority levels live here, not in the ticket.",
         )
-    if name == "lookup_order":
+    if name == "lookup_requester":
         return (
             "Tool",
-            f"Looked up order {args.get('order_id') or ''}".strip(),
-            "The order record has the price, the age, and whether the goods were opened. The handoff does not.",
+            f"Looked up requester {args.get('requester_id') or ''}".strip(),
+            "The employee record has employment status. The handoff does not.",
         )
     if name == "lookup_ticket":
         return (
             "Tool",
             f"Looked up ticket {args.get('ticket_id') or ''}".strip(),
-            "The ticket record carries the safety flag. A worrying handoff is not the same thing as that flag.",
+            "The ticket record carries the intake tag, the category, and any security signal. The wording of the message is not that record.",
         )
-    if name == "file_resolution":
-        refund = args.get("refund_usd")
-        shown = money(float(refund)) if isinstance(refund, (int, float)) else "an amount"
-        people = "and handed it to a person" if args.get("escalate") is True else "without escalating"
-        disposition = args.get("disposition") or "a disposition"
+    if name == "file_triage":
+        priority = args.get("priority") or "a priority"
+        group = args.get("assignment_group") or "a queue"
+        kind = args.get("ticket_type") or "a type"
         return (
             "Decision",
-            f"Filed {disposition} for {shown}",
-            f"One resolution, {people}. The verifier grades this call.",
+            f"Filed {kind} {priority} to {group}",
+            "One triage. The verifier grades this call: type, category, priority, assignment group, and actions.",
         )
-    return ("Tool", name or "Tool call", "The associate called a tool.")
+    return ("Tool", name or "Tool call", "The lead called a tool.")
 
 
 def _describe_return(name: str, output: Any) -> str:
     data = _parsed(output)
-    if name == "lookup_order" and data and "item" in data:
-        state = "sealed" if data.get("opened") is False else "opened"
-        damage = ", transit damage" if data.get("damage_in_transit") else ""
-        tier = data.get("customer_tier") or "standard"
-        price = data.get("merchandise_usd")
-        price_text = money(float(price)) if isinstance(price, (int, float)) else "?"
+    if name == "lookup_requester" and data and "name" in data:
         return (
-            f"{data.get('item')} · {price_text} merchandise · "
-            f"day {data.get('days_since_delivery')} · {state}{damage} · {tier} customer"
+            f"{data.get('name')} · {data.get('employment') or 'unknown status'} · "
+            f"{data.get('department') or 'unknown team'}"
         )
     if name == "lookup_ticket" and data and "ticket_id" in data:
-        flag = "safety flag on" if data.get("safety_flag") else "no safety flag"
-        return f"{data.get('ticket_id')} · {flag} · {data.get('channel') or 'unknown channel'}"
-    if name == "file_resolution" and data:
+        outage = " · site outage" if data.get("shared_outage") else ""
+        return (
+            f"{data.get('ticket_id')} · {data.get('intake_type')} · {data.get('category')} · "
+            f"signal {data.get('security_signal') or 'none'} · open {data.get('hours_open')}h{outage}"
+        )
+    if name == "file_triage" and data:
         accepted = "accepted" if data.get("accepted") else "rejected"
         return f"Desk {accepted} the filing."
     if name == "read_skill_file" and data and isinstance(data.get("content"), str):
@@ -176,12 +173,12 @@ def _describe_return(name: str, output: Any) -> str:
     return _excerpt(json.dumps(output, ensure_ascii=False))
 
 
-def _filed_resolution(output: list[Any]) -> dict[str, Any] | None:
+def _filed_triage(output: list[Any]) -> dict[str, Any] | None:
     filed = None
     for item in output:
         if not isinstance(item, dict) or item.get("type") != "function_call":
             continue
-        if item.get("name") != "file_resolution":
+        if item.get("name") != "file_triage":
             continue
         filed = _arguments(item.get("arguments"))
     return filed
@@ -219,7 +216,7 @@ def trace_payload(row: dict[str, Any]) -> dict[str, Any]:
                         {
                             "kind": "Reply",
                             "title": "Told the teammate the outcome",
-                            "detail": "This is the associate's note back to the person who handed over the ticket.",
+                            "detail": "This is the lead's note back to the person who handed over the ticket.",
                             "excerpt": text.strip(),
                         }
                     )
@@ -236,20 +233,22 @@ def trace_payload(row: dict[str, Any]) -> dict[str, Any]:
             "detail": detail,
             "excerpt": excerpt,
         }
-        if item.get("name") == "file_resolution":
+        if item.get("name") == "file_triage":
             step["filing"] = {
-                "disposition": args.get("disposition"),
-                "refund_usd": args.get("refund_usd"),
-                "escalate": args.get("escalate"),
-                "customer_message": args.get("customer_message") or "",
+                "ticket_type": args.get("ticket_type"),
+                "category": args.get("category"),
+                "priority": args.get("priority"),
+                "assignment_group": args.get("assignment_group"),
+                "actions": args.get("actions") or "",
+                "requester_message": args.get("requester_message") or "",
             }
         steps.append(step)
 
-    filed = _filed_resolution([item for item in output if isinstance(item, dict)])
+    filed = _filed_triage([item for item in output if isinstance(item, dict)])
     if graded.decision == 1.0 and graded.procedure == 1.0:
         verdict = "The filing matches the policy."
     elif graded.decision == 0.0 and graded.procedure == 1.0:
-        verdict = "The associate looked up the order and the ticket, then filed a different outcome than the policy."
+        verdict = "The lead looked up the requester and the ticket, then filed a different outcome than the policy."
     elif graded.decision == 1.0:
         verdict = "The decision matches the policy, but a required lookup was skipped."
     else:
@@ -268,18 +267,23 @@ def trace_payload(row: dict[str, Any]) -> dict[str, Any]:
                 "gym_reward": gym_reward if isinstance(gym_reward, (int, float)) else None,
                 "passed": graded.decision == 1.0,
                 "expected_line": outcome_line(graded.expected),
-                "expected_disposition": graded.expected.disposition,
-                "expected_plain": plain_disposition(graded.expected.disposition),
-                "filed_disposition": None if filed is None else filed.get("disposition"),
-                "filed_refund_usd": None if filed is None else filed.get("refund_usd"),
-                "filed_escalate": None if filed is None else filed.get("escalate"),
+                "expected_ticket_type": graded.expected.ticket_type,
+                "expected_category": graded.expected.category,
+                "expected_priority": graded.expected.priority,
+                "expected_assignment_group": graded.expected.assignment_group,
+                "expected_actions": ",".join(graded.expected.actions),
+                "filed_ticket_type": None if filed is None else filed.get("ticket_type"),
+                "filed_category": None if filed is None else filed.get("category"),
+                "filed_priority": None if filed is None else filed.get("priority"),
+                "filed_assignment_group": None if filed is None else filed.get("assignment_group"),
+                "filed_actions": None if filed is None else filed.get("actions"),
             },
         }
     )
     return {
         "case_id": case["case_id"],
         "ticket_id": case["ticket"]["ticket_id"],
-        "order_id": case["order"]["order_id"],
+        "requester_id": case["requester"]["requester_id"],
         "title": ticket_title(case["case_id"]),
         "handoff": case["user"],
         "skills_path": skills.get("path") or "",
@@ -333,7 +337,7 @@ def load_sample_view(root: Path) -> dict[str, Any]:
         raise FileNotFoundError("sample_run/manifest.json is missing.")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     recorded_on = manifest.get("recorded_on") or "2026-11-12"
-    model = manifest.get("model") or "mock-desk-associate"
+    model = manifest.get("model") or "mock-it-lead"
     nemo_gym = str(manifest.get("nemo_gym") or "0.7.0")
     endpoint = str(manifest.get("endpoint") or "")
     host = endpoint.split("://", 1)[-1].split("/", 1)[0] if endpoint else ""

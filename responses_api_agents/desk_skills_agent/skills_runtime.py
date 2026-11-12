@@ -26,7 +26,7 @@ NO_SKILLS_BANNER = "No operational skills are loaded for this run."
 
 def stage_request_skills(skills_path: str) -> tuple[Path, Path]:
     """Copy ``skills_path`` into a fresh directory. Caller deletes the parent."""
-    root = Path(tempfile.mkdtemp(prefix="northwind-skills-"))
+    root = Path(tempfile.mkdtemp(prefix="ticketnow-skills-"))
     dest = root / "skills"
     try:
         stage_skills(skills_path, dest)
@@ -59,8 +59,8 @@ def render_catalog(staged_dir: Path) -> str:
 
 def render_no_skills() -> str:
     return (
-        f"{NO_SKILLS_BANNER} Northwind's policy documents are not in your context. "
-        "Use the tools and the ticket text. Do not invent a company disposition code."
+        f"{NO_SKILLS_BANNER} TicketNow's policy documents are not in your context. "
+        "Use the tools and the ticket text. Do not invent a priority, an assignment group, or an action code."
     )
 
 

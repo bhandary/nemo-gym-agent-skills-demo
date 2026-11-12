@@ -1,8 +1,8 @@
-"""Northwind support-desk resources server.
+"""TicketNow IT service desk resources server.
 
-Tools return order and ticket facts. ``verify`` scores the agent's
-``file_resolution`` call with the fixed company policy. Skills are not
-read here. NeMo Gym applies them as a run-level knob on the agent.
+Tools return requester and ticket facts. ``verify`` scores the agent's
+``file_triage`` call with the fixed company policy. Skills are not read
+here. NeMo Gym applies them as a run-level knob on the agent.
 """
 
 from __future__ import annotations
@@ -35,32 +35,34 @@ from nemo_gym.base_resources_server import (
 from nemo_gym.episode_types import EpisodeId, TaskId
 
 
-class NorthwindDeskConfig(BaseResourcesServerConfig):
+class TicketNowDeskConfig(BaseResourcesServerConfig):
     pass
 
 
-class LookupOrderRequest(BaseModel):
-    order_id: str
+class LookupRequesterRequest(BaseModel):
+    requester_id: str
 
 
 class LookupTicketRequest(BaseModel):
     ticket_id: str
 
 
-class FileResolutionRequest(BaseModel):
+class FileTriageRequest(BaseModel):
     ticket_id: str
-    disposition: str
-    refund_usd: float
-    escalate: bool
-    customer_message: str
+    ticket_type: str
+    category: str
+    priority: str
+    assignment_group: str
+    actions: str
+    requester_message: str
 
 
-class NorthwindVerifyRequest(BaseVerifyRequest):
+class TicketNowVerifyRequest(BaseVerifyRequest):
     model_config = ConfigDict(extra="allow")
     case_id: str
 
 
-class NorthwindVerifyResponse(BaseMultiRewardVerifyResponse):
+class TicketNowVerifyResponse(BaseMultiRewardVerifyResponse):
     model_config = ConfigDict(extra="allow")
     case_id: str
     procedure: float
@@ -68,17 +70,17 @@ class NorthwindVerifyResponse(BaseMultiRewardVerifyResponse):
     score_notes: str
 
 
-class NorthwindDeskResourcesServer(SimpleResourcesServer):
+class TicketNowDeskResourcesServer(SimpleResourcesServer):
     ray_enabled: ClassVar[bool] = False
-    config: NorthwindDeskConfig
+    config: TicketNowDeskConfig
     _session_episodes: dict[str, tuple[EpisodeId, TaskId]] = PrivateAttr(default_factory=dict)
     _closed_session_ids: set[str] = PrivateAttr(default_factory=set)
 
     def setup_webserver(self) -> FastAPI:
         app = super().setup_webserver()
-        app.post("/lookup_order")(self.lookup_order)
+        app.post("/lookup_requester")(self.lookup_requester)
         app.post("/lookup_ticket")(self.lookup_ticket)
-        app.post("/file_resolution")(self.file_resolution)
+        app.post("/file_triage")(self.file_triage)
         return app
 
     async def seed_session(
@@ -104,26 +106,28 @@ class NorthwindDeskResourcesServer(SimpleResourcesServer):
         self._closed_session_ids.add(resources_session_id)
         return ResourcesCloseSessionResponse(resources_session_id=resources_session_id)
 
-    async def lookup_order(self, body: LookupOrderRequest) -> dict[str, Any]:
-        return policy.lookup_order_payload(body.order_id)
+    async def lookup_requester(self, body: LookupRequesterRequest) -> dict[str, Any]:
+        return policy.lookup_requester_payload(body.requester_id)
 
     async def lookup_ticket(self, body: LookupTicketRequest) -> dict[str, Any]:
         return policy.lookup_ticket_payload(body.ticket_id)
 
-    async def file_resolution(self, body: FileResolutionRequest) -> dict[str, Any]:
+    async def file_triage(self, body: FileTriageRequest) -> dict[str, Any]:
         return {
             "accepted": True,
             "ticket_id": body.ticket_id,
-            "disposition": body.disposition,
-            "refund_usd": body.refund_usd,
-            "escalate": body.escalate,
+            "ticket_type": body.ticket_type,
+            "category": body.category,
+            "priority": body.priority,
+            "assignment_group": body.assignment_group,
+            "actions": body.actions,
         }
 
-    async def verify(self, body: NorthwindVerifyRequest) -> NorthwindVerifyResponse:
+    async def verify(self, body: TicketNowVerifyRequest) -> TicketNowVerifyResponse:
         try:
             case = policy.case_by_id(body.case_id)
         except KeyError:
-            return NorthwindVerifyResponse(
+            return TicketNowVerifyResponse(
                 responses_create_params=body.responses_create_params,
                 response=body.response,
                 case_id=body.case_id,
@@ -144,13 +148,15 @@ class NorthwindDeskResourcesServer(SimpleResourcesServer):
                     "procedure": f"{graded.procedure:.4f}",
                     "decision": f"{graded.decision:.4f}",
                     "score_notes": graded.notes[:500],
-                    "expected_disposition": graded.expected.disposition,
-                    "expected_refund_usd": f"{graded.expected.refund_usd:.2f}",
-                    "expected_escalate": "true" if graded.expected.escalate else "false",
+                    "expected_ticket_type": graded.expected.ticket_type,
+                    "expected_category": graded.expected.category,
+                    "expected_priority": graded.expected.priority,
+                    "expected_assignment_group": graded.expected.assignment_group,
+                    "expected_actions": ",".join(graded.expected.actions),
                 }
             }
         )
-        return NorthwindVerifyResponse(
+        return TicketNowVerifyResponse(
             responses_create_params=body.responses_create_params,
             response=stamped,
             case_id=body.case_id,
@@ -163,4 +169,4 @@ class NorthwindDeskResourcesServer(SimpleResourcesServer):
 
 
 if __name__ == "__main__":
-    NorthwindDeskResourcesServer.run_webserver()
+    TicketNowDeskResourcesServer.run_webserver()

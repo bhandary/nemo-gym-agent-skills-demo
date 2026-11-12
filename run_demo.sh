@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# One command for the Northwind Agent Skills demo.
-# Starts NeMo Gym, runs the same five tickets three ways, and prints the comparison.
+# One command for the TicketNow IT service desk demo.
+# Starts NeMo Gym, runs the same tickets three ways, and prints the comparison.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -32,12 +32,12 @@ fi
 
 python - <<'PY'
 from pathlib import Path
-from demo.skill_sets import sync_without_refund
-from resources_servers.northwind_desk.policy import render_tasks_jsonl
+from demo.skill_sets import sync_without_priority_matrix
+from resources_servers.ticketnow_desk.policy import render_tasks_jsonl
 
 root = Path(".")
-sync_without_refund(root)
-data = root / "resources_servers" / "northwind_desk" / "data"
+sync_without_priority_matrix(root)
+data = root / "resources_servers" / "ticketnow_desk" / "data"
 data.mkdir(parents=True, exist_ok=True)
 (data / "tasks.jsonl").write_text(render_tasks_jsonl(), encoding="utf-8")
 PY
@@ -76,9 +76,9 @@ trap cleanup EXIT
 mkdir -p results
 MODEL_TYPE="${POLICY_MODEL_TYPE:-vllm_model}"
 if [[ "$real_key" -eq 0 ]]; then
-  echo "No policy API key is set. Using the deterministic mock model (mock-desk-associate)."
+  echo "No policy API key is set. Using the deterministic mock model (mock-it-lead)."
   echo "This run is MOCK output. It is not a call to NVIDIA or OpenAI."
-  python -m demo.mock_model >/tmp/northwind-mock.log 2>&1 &
+  python -m demo.mock_model >/tmp/ticketnow-mock.log 2>&1 &
   MOCK_PID=$!
   for _ in $(seq 1 50); do
     if curl -sf "http://127.0.0.1:43117/v1/models" >/dev/null; then
@@ -86,14 +86,14 @@ if [[ "$real_key" -eq 0 ]]; then
     fi
     if ! kill -0 "$MOCK_PID" 2>/dev/null; then
       echo "The mock model exited."
-      cat /tmp/northwind-mock.log
+      cat /tmp/ticketnow-mock.log
       exit 1
     fi
     sleep 0.1
   done
   export POLICY_BASE_URL="http://127.0.0.1:43117/v1"
   export POLICY_API_KEY="mock"
-  export POLICY_MODEL_NAME="mock-desk-associate"
+  export POLICY_MODEL_NAME="mock-it-lead"
   MODEL_TYPE="vllm_model"
 else
   : "${POLICY_BASE_URL:?Set POLICY_BASE_URL in .env}"
@@ -133,7 +133,7 @@ PY
 
 echo "Starting NeMo Gym. The first start builds one virtualenv per server and can take several minutes."
 gym env start \
-  --resources-server northwind_desk \
+  --resources-server ticketnow_desk \
   --model-type "$MODEL_TYPE" \
   >results/servers.log 2>&1 &
 GYM_PID=$!
@@ -164,8 +164,8 @@ run_variant() {
   echo "Collecting ${name}."
   if ! gym eval run \
     --no-serve \
-    --agent northwind_desk_skills_agent \
-    --input resources_servers/northwind_desk/data/tasks.jsonl \
+    --agent ticketnow_desk_skills_agent \
+    --input resources_servers/ticketnow_desk/data/tasks.jsonl \
     --output "results/${name}.jsonl" \
     --concurrency 1 \
     --num-repeats 1 \
@@ -180,7 +180,7 @@ run_variant() {
 
 run_variant no_skills
 run_variant full_skills +skills.path=skills/full
-run_variant without_refund_policy +skills.path=skills/without_refund_policy
+run_variant without_priority_matrix +skills.path=skills/without_priority_matrix
 
 python -m demo.report --results results
 echo

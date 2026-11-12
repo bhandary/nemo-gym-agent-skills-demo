@@ -1,22 +1,22 @@
 {
   "label": "Recorded mock run. Not a call to NVIDIA, OpenAI, or any other live model.",
-  "model": "mock-desk-associate",
+  "model": "mock-it-lead",
   "endpoint": "http://127.0.0.1:43117/v1",
   "model_adapter": "vllm_model",
   "nemo_gym": "0.7.0",
-  "python": "3.13.14",
+  "python": "3.13.18",
   "recorded_on": "2026-11-12",
   "skills": {
     "full": {
       "path": "skills/full",
-      "hash": "02d6d516ea52"
+      "hash": "b3c46d3e38b1"
     },
-    "without_refund_policy": {
-      "path": "skills/without_refund_policy",
-      "hash": "a017e8fceb66"
+    "without_priority_matrix": {
+      "path": "skills/without_priority_matrix",
+      "hash": "bf296533da02"
     },
     "no_skills": null
   },
   "temperature": 0,
-  "note": "The mock is a deterministic chat-completions server. It files a correct resolution only after the skill text is in the conversation. ./run_demo.sh with an API key writes results/ and does not overwrite this folder."
+  "note": "The mock is a deterministic chat-completions server. It files a correct triage only after the skill text is in the conversation. ./run_demo.sh with an API key writes results/ and does not overwrite this folder."
 }

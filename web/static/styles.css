@@ -237,6 +237,12 @@ legend {
   margin-top: 0.6rem;
 }
 
+.ticket-list {
+  max-height: 34rem;
+  overflow: auto;
+  padding-right: 0.15rem;
+}
+
 .textish, .ticket, .step, .close, .ghost {
   border: 1px solid var(--line);
   background: var(--paper-2);
@@ -495,8 +501,6 @@ details summary {
   cursor: pointer;
   font-weight: 680;
 }
-.beat { display: grid; grid-template-columns: 3rem 1fr; gap: 0.4rem; margin: 0.55rem 0; }
-.beat b { color: var(--forest); font-variant-numeric: tabular-nums; }
 
 dialog {
   width: min(42rem, calc(100vw - 2rem));

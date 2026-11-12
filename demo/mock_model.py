@@ -1,12 +1,13 @@
 """Deterministic stand-in for an OpenAI-compatible chat model.
 
 This is not a language model. It follows the skill text that is actually in
-the conversation. If the refund rate card was never read, refund cases get a
-wrong disposition. If the escalation playbook was never loaded, safety and
-high-value cases miss the short-circuit too.
+the conversation. If the priority matrix was never read, ordinary tickets get
+the wrong priority. If the security playbook was never loaded, phishing and
+lost-laptop tickets miss the priority-one short-circuit too.
 
 NeMo Gym's ``vllm_model`` server translates the Responses API to
 ``POST {base_url}/chat/completions``. This server speaks that dialect.
+``openai_model`` is the live adapter and is not used here.
 """
 
 from __future__ import annotations
@@ -14,22 +15,32 @@ from __future__ import annotations
 import json
 import re
 import sys
-from decimal import Decimal, ROUND_HALF_UP
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 
-MODEL_NAME = "mock-desk-associate"
+MODEL_NAME = "mock-it-lead"
 DEFAULT_PORT = 43117
 
 _KEY_RE = re.compile(r"(?m)^([a-z][a-z0-9_]*):\s*(\S+)\s*$")
 _CATALOG_RE = re.compile(r"(?m)^- ([a-z0-9-]+): ")
-_ORDER_RE = re.compile(r"NW-\d+")
-_TICKET_RE = re.compile(r"T-\d+")
+_REQUESTER_RE = re.compile(r"EMP-\d+")
+_TICKET_RE = re.compile(r"TKT-\d+")
 
+SKILL_ORDER = (
+    "security-first-response",
+    "ticket-classification",
+    "access-request-policy",
+    "priority-matrix",
+)
 
-def money(value: Decimal) -> float:
-    return float(value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+WRONG = {
+    "ticket_type": "request",
+    "category": "general",
+    "priority": "P3",
+    "assignment_group": "service-desk",
+    "actions": "acknowledge",
+}
 
 
 def text_of(content: Any) -> str:
@@ -93,7 +104,7 @@ def walk(messages: list[dict[str, Any]]) -> dict[str, Any]:
     catalog = _CATALOG_RE.findall("\n".join(prose))
     completed: list[tuple[str, dict[str, Any], str]] = []
     facts: dict[str, str] = {}
-    order: dict[str, Any] | None = None
+    requester: dict[str, Any] | None = None
     ticket: dict[str, Any] | None = None
     filed = False
     for call in calls:
@@ -110,17 +121,17 @@ def walk(messages: list[dict[str, Any]]) -> dict[str, Any]:
         for blob in blobs:
             for match in _KEY_RE.finditer(blob):
                 facts[match.group(1)] = match.group(2)
-        if name == "lookup_order" and "merchandise_usd" in payload:
-            order = payload
-        if name == "lookup_ticket" and "ticket_id" in payload:
+        if name == "lookup_requester" and "requester_id" in payload:
+            requester = payload
+        if name == "lookup_ticket" and "ticket_id" in payload and "intake_type" in payload:
             ticket = payload
-        if name == "file_resolution" and "error" not in payload:
+        if name == "file_triage" and "error" not in payload:
             filed = True
     return {
         "catalog": catalog,
         "completed": completed,
         "facts": facts,
-        "order": order,
+        "requester": requester,
         "ticket": ticket,
         "filed": filed,
         "prose": "\n".join(prose),
@@ -138,36 +149,115 @@ def _did(state: dict[str, Any], tool_name: str, **expected: str) -> bool:
     return False
 
 
-def decide_from_skill_text(order: dict[str, Any], ticket: dict[str, Any], facts: dict[str, str]) -> tuple[str, float, bool]:
+def _csv_set(facts: dict[str, str], key: str) -> set[str]:
+    return {part for part in facts.get(key, "").split(",") if part}
+
+
+def _actions_text(requester: dict[str, Any], ticket: dict[str, Any], facts: dict[str, str]) -> str:
+    employment = str(requester.get("employment") or "")
+    category = str(ticket.get("category") or "")
+    intake = str(ticket.get("intake_type") or "")
+    if category == "lifecycle" and employment in _csv_set(facts, "offboard_employment") and "offboard_actions" in facts:
+        return facts["offboard_actions"]
+    if category == "lifecycle" and employment in _csv_set(facts, "onboard_employment") and "onboard_actions" in facts:
+        return facts["onboard_actions"]
+    if category == "access" and intake == "request" and "access_request_action" in facts:
+        return facts["access_request_action"]
+    if category == "access" and intake == "incident" and "access_incident_action" in facts:
+        return facts["access_incident_action"]
+    if intake == "inquiry":
+        aged = facts.get("aged_inquiry_hours")
+        if (
+            aged is not None
+            and int(ticket.get("hours_open") or 0) >= int(aged)
+            and "aged_inquiry_action" in facts
+        ):
+            return facts["aged_inquiry_action"]
+        if "action_inquiry" in facts:
+            return facts["action_inquiry"]
+        return "acknowledge"
+    specific = f"action_{category}_{intake}"
+    if specific in facts:
+        return facts[specific]
+    if intake == "request" and "action_request" in facts:
+        return facts["action_request"]
+    return "acknowledge"
+
+
+def _priority(requester: dict[str, Any], ticket: dict[str, Any], facts: dict[str, str]) -> str | None:
+    required = (
+        "offboard_priority",
+        "onboard_priority",
+        "outage_priority",
+        "incident_priority",
+        "request_priority",
+        "inquiry_priority",
+        "aged_inquiry_hours",
+        "aged_inquiry_priority",
+    )
+    if any(key not in facts for key in required):
+        return None
+    employment = str(requester.get("employment") or "")
+    category = str(ticket.get("category") or "")
+    intake = str(ticket.get("intake_type") or "")
+    offboard = _csv_set(facts, "offboard_employment") or {"leaving", "left"}
+    onboard = _csv_set(facts, "onboard_employment") or {"new_hire"}
+    if category == "lifecycle" and employment in offboard:
+        return facts["offboard_priority"]
+    if category == "lifecycle" and employment in onboard:
+        return facts["onboard_priority"]
+    if ticket.get("shared_outage"):
+        return facts["outage_priority"]
+    if intake == "incident":
+        return facts["incident_priority"]
+    if intake == "request":
+        return facts["request_priority"]
+    if intake == "inquiry" and int(ticket.get("hours_open") or 0) >= int(facts["aged_inquiry_hours"]):
+        return facts["aged_inquiry_priority"]
+    if intake == "inquiry":
+        return facts["inquiry_priority"]
+    return None
+
+
+def decide_from_skill_text(
+    requester: dict[str, Any],
+    ticket: dict[str, Any],
+    facts: dict[str, str],
+) -> dict[str, str]:
     """Apply only the lines the skills actually revealed. Missing lines mean a wrong filing."""
-    if ticket.get("safety_flag") and "safety_flag_disposition" in facts:
-        return facts["safety_flag_disposition"], 0.0, True
-    high = facts.get("high_value_merchandise_usd")
-    if (
-        high is not None
-        and float(order["merchandise_usd"]) > float(high)
-        and "high_value_disposition" in facts
-    ):
-        return facts["high_value_disposition"], 0.0, True
-    if "full_refund_disposition" not in facts:
-        return "refund", float(order["merchandise_usd"]), False
-    days = int(order["days_since_delivery"])
-    if not order["opened"] and days <= int(facts["unopened_full_refund_days"]):
-        return facts["full_refund_disposition"], float(order["merchandise_usd"]), False
-    if (
-        order["opened"]
-        and order["damage_in_transit"]
-        and days <= int(facts["opened_damage_days"])
-    ):
-        refund = money(
-            Decimal(str(order["merchandise_usd"]))
-            * Decimal(facts["opened_damage_refund_percent"])
-            / Decimal(100)
-        )
-        return facts["partial_refund_disposition"], refund, False
-    if order["customer_tier"] == "gold":
-        return facts["gold_no_refund_disposition"], 0.0, False
-    return facts["standard_no_refund_disposition"], 0.0, False
+    signal = str(ticket.get("security_signal") or "none")
+    p1 = _csv_set(facts, "p1_signals")
+    action_key = f"action_{signal}"
+    if signal in p1 and all(key in facts for key in ("p1_type", "p1_category", "p1_priority", "p1_group", action_key)):
+        return {
+            "ticket_type": facts["p1_type"],
+            "category": facts["p1_category"],
+            "priority": facts["p1_priority"],
+            "assignment_group": facts["p1_group"],
+            "actions": facts[action_key],
+        }
+    if "group_access" not in facts:
+        return dict(WRONG)
+
+    category = str(ticket.get("category") or "")
+    employment = str(requester.get("employment") or "")
+    ticket_type = str(ticket.get("intake_type") or "")
+    if category == "lifecycle" and employment in _csv_set(facts, "offboard_employment") and "offboard_actions" in facts:
+        ticket_type = "request"
+    elif category == "lifecycle" and employment in _csv_set(facts, "onboard_employment") and "onboard_actions" in facts:
+        ticket_type = "request"
+
+    group = facts.get(f"group_{category}")
+    if not group:
+        return dict(WRONG)
+    priority = _priority(requester, ticket, facts) or "unset"
+    return {
+        "ticket_type": ticket_type,
+        "category": category,
+        "priority": priority,
+        "assignment_group": group,
+        "actions": _actions_text(requester, ticket, facts),
+    }
 
 
 def choose_action(request: dict[str, Any]) -> dict[str, Any]:
@@ -175,9 +265,9 @@ def choose_action(request: dict[str, Any]) -> dict[str, Any]:
     messages = list(request.get("messages") or [])
     state = walk(messages)
     prose = state["prose"]
-    order_id = _ORDER_RE.search(prose)
+    requester_id = _REQUESTER_RE.search(prose)
     ticket_id = _TICKET_RE.search(prose)
-    order_token = order_id.group(0) if order_id else ""
+    requester_token = requester_id.group(0) if requester_id else ""
     ticket_token = ticket_id.group(0) if ticket_id else ""
     catalog = set(state["catalog"])
 
@@ -205,50 +295,50 @@ def choose_action(request: dict[str, Any]) -> dict[str, Any]:
         print(f"[mock] {name} {choice['message']['tool_calls'][0]['function']['arguments']}", file=sys.stderr, flush=True)
         return choice
 
-    if "escalation-playbook" in catalog and not _did(state, "activate_skill", name="escalation-playbook"):
-        return tool("activate_skill", {"name": "escalation-playbook"})
-    if "refund-policy" in catalog and not _did(state, "activate_skill", name="refund-policy"):
-        return tool("activate_skill", {"name": "refund-policy"})
-    if "refund-policy" in catalog and "unopened_full_refund_days" not in state["facts"]:
+    for name in SKILL_ORDER:
+        if name in catalog and not _did(state, "activate_skill", name=name):
+            return tool("activate_skill", {"name": name})
+    if "priority-matrix" in catalog and "incident_priority" not in state["facts"]:
         return tool(
             "read_skill_file",
-            {"name": "refund-policy", "relative_path": "references/rate-card.md"},
+            {"name": "priority-matrix", "relative_path": "references/priority-matrix.md"},
         )
-    if "close-the-ticket" in catalog and not _did(state, "activate_skill", name="close-the-ticket"):
-        return tool("activate_skill", {"name": "close-the-ticket"})
-    if state["order"] is None and order_token:
-        return tool("lookup_order", {"order_id": order_token})
+    if state["requester"] is None and requester_token:
+        return tool("lookup_requester", {"requester_id": requester_token})
     if state["ticket"] is None and ticket_token:
         return tool("lookup_ticket", {"ticket_id": ticket_token})
-    if not state["filed"] and state["order"] and state["ticket"]:
-        disposition, refund, escalate = decide_from_skill_text(state["order"], state["ticket"], state["facts"])
+    if not state["filed"] and state["requester"] and state["ticket"]:
+        filing = decide_from_skill_text(state["requester"], state["ticket"], state["facts"])
         return tool(
-            "file_resolution",
+            "file_triage",
             {
                 "ticket_id": state["ticket"]["ticket_id"],
-                "disposition": disposition,
-                "refund_usd": refund,
-                "escalate": escalate,
-                "customer_message": "I've recorded the outcome on your ticket and noted the amount.",
+                "ticket_type": filing["ticket_type"],
+                "category": filing["category"],
+                "priority": filing["priority"],
+                "assignment_group": filing["assignment_group"],
+                "actions": filing["actions"],
+                "requester_message": "I've recorded the triage and the next step on your ticket.",
             },
         )
 
-    disposition = "unresolved"
-    refund = 0.0
-    escalate = False
+    filing = dict(WRONG)
     ticket = ticket_token or "the ticket"
     for name, arguments, _output in reversed(state["completed"]):
-        if name == "file_resolution":
-            disposition = str(arguments.get("disposition") or disposition)
-            try:
-                refund = float(arguments.get("refund_usd"))
-            except (TypeError, ValueError):
-                refund = 0.0
-            escalate = bool(arguments.get("escalate"))
+        if name == "file_triage":
+            filing = {
+                "ticket_type": str(arguments.get("ticket_type") or filing["ticket_type"]),
+                "category": str(arguments.get("category") or filing["category"]),
+                "priority": str(arguments.get("priority") or filing["priority"]),
+                "assignment_group": str(arguments.get("assignment_group") or filing["assignment_group"]),
+                "actions": str(arguments.get("actions") or filing["actions"]),
+            }
             ticket = str(arguments.get("ticket_id") or ticket)
             break
-    escalated = "yes" if escalate else "no"
-    content = f"Filed {disposition} on {ticket}. Refund ${refund:.2f}. Escalated: {escalated}."
+    content = (
+        f"Filed {filing['ticket_type']} {filing['priority']} on {ticket} "
+        f"to {filing['assignment_group']}. Actions: {filing['actions']}."
+    )
     print(f"[mock] final: {content}", file=sys.stderr, flush=True)
     return {"kind": "message", "message": {"role": "assistant", "content": content}}
 
@@ -277,7 +367,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.rstrip("/") in {"/v1/models", "/models"}:
             body = {
                 "object": "list",
-                "data": [{"id": MODEL_NAME, "object": "model", "owned_by": "northwind-demo"}],
+                "data": [{"id": MODEL_NAME, "object": "model", "owned_by": "ticketnow-demo"}],
             }
             self._send(200, body)
             return
@@ -307,7 +397,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def serve(port: int = DEFAULT_PORT) -> None:
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
-    print(f"Mock desk model on http://127.0.0.1:{port}/v1  model={MODEL_NAME}", file=sys.stderr, flush=True)
+    print(f"Mock IT lead on http://127.0.0.1:{port}/v1  model={MODEL_NAME}", file=sys.stderr, flush=True)
     server.serve_forever()
 
 

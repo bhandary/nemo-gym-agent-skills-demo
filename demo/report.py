@@ -11,14 +11,16 @@ import json
 from pathlib import Path
 from typing import Any
 
-from resources_servers.northwind_desk.policy import CASES, score_output
+from resources_servers.ticketnow_desk.policy import CASES, score_output
 
 
 VARIANTS = (
     ("no_skills", "No skills"),
     ("full_skills", "Full skills"),
-    ("without_refund_policy", "Missing refund skill"),
+    ("without_priority_matrix", "Priority matrix removed"),
 )
+
+TRACE_CASE = "offboard-friday"
 
 
 def _load(path: Path) -> list[dict[str, Any]]:
@@ -55,7 +57,7 @@ def _case_for(row: dict[str, Any]) -> dict[str, Any]:
     for case in CASES:
         if case["user"] in text or case["ticket"]["ticket_id"] in text:
             return case
-    raise SystemExit("A rollout could not be matched to a Northwind ticket.")
+    raise SystemExit("A rollout could not be matched to a TicketNow ticket.")
 
 
 def _grade(row: dict[str, Any]) -> Any:
@@ -69,13 +71,17 @@ def _index(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return found
 
 
-def _money(value: float) -> str:
-    return f"${value:.2f}"
+def _expected_line(graded: Any) -> str:
+    expected = graded.expected
+    return (
+        f"{expected.ticket_type}, {expected.category}, {expected.priority}, "
+        f"{expected.assignment_group}, actions {','.join(expected.actions)}"
+    )
 
 
 def comparison_markdown(by_variant: dict[str, dict[str, dict[str, Any]]]) -> str:
     lines = [
-        "| Ticket | No skills | Full skills | Missing refund skill |",
+        "| Ticket | No skills | Full skills | Priority matrix removed |",
         "| --- | --- | --- | --- |",
     ]
     means = {key: [] for key, _label in VARIANTS}
@@ -122,13 +128,13 @@ def trace_markdown(row: dict[str, Any]) -> str:
     lines = [
         f"# Episode trace: {case['case_id']}",
         "",
-        f"Customer ticket {case['ticket']['ticket_id']}, order {case['order']['order_id']}.",
+        f"Employee ticket {case['ticket']['ticket_id']}, requester {case['requester']['requester_id']}.",
         "",
         f"Skills directory: `{skills.get('path', 'none')}`",
         f"Skills hash: `{skills.get('hash', 'none')}`",
         f"Skills loaded: {', '.join(names) if names else 'none'}",
         "",
-        "The agent sees the skill catalog first. It loads a skill, then reads the rate card, then looks up the ticket, then files one resolution.",
+        "The lead sees the skill catalog first. It loads a skill, then reads the priority matrix, then looks up the requester and the ticket, then files one triage.",
         "",
     ]
     step = 0
@@ -151,12 +157,12 @@ def trace_markdown(row: dict[str, Any]) -> str:
             if isinstance(content, list):
                 content = " ".join(str(part.get("text") or "") for part in content if isinstance(part, dict))
             lines.append("")
-            lines.append(f"Associate: {content}")
+            lines.append(f"Lead: {content}")
     lines.extend(
         [
             "",
             f"Verifier: procedure {graded.procedure:.0f}, decision {graded.decision:.0f}, reward {graded.reward:.1f}.",
-            f"Expected {graded.expected.disposition}, refund {_money(graded.expected.refund_usd)}, escalate {graded.expected.escalate}.",
+            f"Expected {_expected_line(graded)}.",
             f"Notes: {graded.notes}.",
             f"Gym recorded reward: {row.get('reward')}.",
             "",
@@ -180,11 +186,11 @@ def write_report(results: Path, comparison_path: Path, trace_path: Path, trace_c
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Compare Northwind skill variants.")
+    parser = argparse.ArgumentParser(description="Compare TicketNow skill variants.")
     parser.add_argument("--results", type=Path, default=Path("results"))
     parser.add_argument("--comparison", type=Path, default=None)
     parser.add_argument("--trace", type=Path, default=None)
-    parser.add_argument("--trace-case", default="dented-kettle")
+    parser.add_argument("--trace-case", default=TRACE_CASE)
     args = parser.parse_args()
     comparison_path = args.comparison or (args.results / "comparison.md")
     trace_path = args.trace or (args.results / "trace.md")

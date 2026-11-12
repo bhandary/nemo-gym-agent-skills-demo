@@ -1,7 +1,7 @@
 """Build the missing-skill directory from the committed full set.
 
-The two shared skills must be the same bytes in both variants. The demo
-regenerates ``skills/without_refund_policy`` at the start of every run so a
+The shared skills must be the same bytes in both variants. The demo
+regenerates ``skills/without_priority_matrix`` at the start of every run so a
 presenter edit to the full set cannot silently drift.
 """
 
@@ -11,12 +11,16 @@ import shutil
 from pathlib import Path
 
 
-SHARED_SKILLS = ("escalation-playbook", "close-the-ticket")
+SHARED_SKILLS = (
+    "security-first-response",
+    "ticket-classification",
+    "access-request-policy",
+)
 
 
-def sync_without_refund(root: Path) -> Path:
+def sync_without_priority_matrix(root: Path) -> Path:
     source = root / "skills" / "full"
-    dest = root / "skills" / "without_refund_policy"
+    dest = root / "skills" / "without_priority_matrix"
     if dest.exists():
         shutil.rmtree(dest)
     dest.mkdir(parents=True)

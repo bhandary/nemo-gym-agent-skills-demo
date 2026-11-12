@@ -1,0 +1,151 @@
+Clearing output fpath since `resume_from_cache=False`!
+Reading rows: 0it [00:00, ?it/s]Reading rows: 12it [00:00, 67378.38it/s]
+Routing rows via agent_map {'_default': 'ticketnow_desk_skills_agent'}
+Overriding responses_create_params fields with {'temperature': 0}
+Repeating rows 1 times (in a pattern of abc to aabbcc)!
+Using skills from skills/without_priority_matrix (hash=bf296533da02, 3 skill(s): access-request-policy, security-first-response, ticket-classification)
+Preprocessing and repeating rows:   0%|          | 0/12 [00:00<?, ?it/s]Preprocessing and repeating rows: 100%|██████████| 12/12 [00:00<00:00, 67468.70it/s]
+Writing materialized rows:   0%|          | 0/12 [00:00<?, ?it/s]Writing materialized rows: 100%|██████████| 12/12 [00:00<00:00, 119837.26it/s]
+Querying with 1 concurrent requests
+[2026-11-12 04:18:58,267][nemo_gym.telemetry.connection_pool][INFO] - aiohttp connection pool capacity for this server/CLI process group: workers=1 aggregate_total=102400 aggregate_per_host=1024 effective_total=102400 effective_per_host=1024 per_worker_per_host=1024 intended_per_worker=None intended_per_host_per_worker=None file_descriptor_soft_limit=524288 ephemeral_ports_per_destination=28232. The aiohttp total limit is a scheduling limit, not a strict open-socket cap across multiple hosts.
+Collecting rollouts:   0%|          | 0/12 [00:00<?, ?it/s]                                                           Finished 1 / 12 rollouts (8%) in 0:00:00 (190.17 rollouts/min). Examples left:
+1. ticketnow_desk_skills_agent: 11
+Found 1 / 12 (8.33%) rollouts for `ticketnow_desk_skills_agent`.
+{
+    "reward": 0.4,
+    "mask_sample": 0.0,
+    "procedure": 1.0,
+    "decision": 0.0
+}
+
+Collecting rollouts:   0%|          | 0/12 [00:00<?, ?it/s]                                                           Finished 2 / 12 rollouts (16%) in 0:00:00 (183.24 rollouts/min). Examples left:
+1. ticketnow_desk_skills_agent: 10
+Found 2 / 12 (16.67%) rollouts for `ticketnow_desk_skills_agent`.
+{
+    "reward": 0.4,
+    "mask_sample": 0.0,
+    "procedure": 1.0,
+    "decision": 0.0
+}
+
+Collecting rollouts:   0%|          | 0/12 [00:00<?, ?it/s]                                                           Finished 3 / 12 rollouts (25%) in 0:00:01 (179.56 rollouts/min). Examples left:
+1. ticketnow_desk_skills_agent: 9
+Found 3 / 12 (25.00%) rollouts for `ticketnow_desk_skills_agent`.
+{
+    "reward": 0.4000000000000001,
+    "mask_sample": 0.0,
+    "procedure": 1.0,
+    "decision": 0.0
+}
+
+Collecting rollouts:   0%|          | 0/12 [00:00<?, ?it/s]                                                           Finished 4 / 12 rollouts (33%) in 0:00:01 (178.14 rollouts/min). Examples left:
+1. ticketnow_desk_skills_agent: 8
+Found 4 / 12 (33.33%) rollouts for `ticketnow_desk_skills_agent`.
+{
+    "reward": 0.4,
+    "mask_sample": 0.0,
+    "procedure": 1.0,
+    "decision": 0.0
+}
+
+Collecting rollouts:   0%|          | 0/12 [00:01<?, ?it/s]                                                           Finished 5 / 12 rollouts (41%) in 0:00:01 (177.42 rollouts/min). Examples left:
+1. ticketnow_desk_skills_agent: 7
+Found 5 / 12 (41.67%) rollouts for `ticketnow_desk_skills_agent`.
+{
+    "reward": 0.4,
+    "mask_sample": 0.0,
+    "procedure": 1.0,
+    "decision": 0.0
+}
+
+Collecting rollouts:   0%|          | 0/12 [00:01<?, ?it/s]                                                           Finished 6 / 12 rollouts (50%) in 0:00:02 (177.94 rollouts/min). Examples left:
+1. ticketnow_desk_skills_agent: 6
+Found 6 / 12 (50.00%) rollouts for `ticketnow_desk_skills_agent`.
+{
+    "reward": 0.39999999999999997,
+    "mask_sample": 0.0,
+    "procedure": 1.0,
+    "decision": 0.0
+}
+
+Collecting rollouts:   0%|          | 0/12 [00:02<?, ?it/s]                                                           Finished 7 / 12 rollouts (58%) in 0:00:02 (177.72 rollouts/min). Examples left:
+1. ticketnow_desk_skills_agent: 5
+Found 7 / 12 (58.33%) rollouts for `ticketnow_desk_skills_agent`.
+{
+    "reward": 0.39999999999999997,
+    "mask_sample": 0.0,
+    "procedure": 1.0,
+    "decision": 0.0
+}
+
+Collecting rollouts:   0%|          | 0/12 [00:02<?, ?it/s]                                                           Finished 8 / 12 rollouts (66%) in 0:00:02 (177.30 rollouts/min). Examples left:
+1. ticketnow_desk_skills_agent: 4
+Found 8 / 12 (66.67%) rollouts for `ticketnow_desk_skills_agent`.
+{
+    "reward": 0.39999999999999997,
+    "mask_sample": 0.0,
+    "procedure": 1.0,
+    "decision": 0.0
+}
+
+Collecting rollouts:   0%|          | 0/12 [00:02<?, ?it/s]                                                           Finished 9 / 12 rollouts (75%) in 0:00:03 (176.72 rollouts/min). Examples left:
+1. ticketnow_desk_skills_agent: 3
+Found 9 / 12 (75.00%) rollouts for `ticketnow_desk_skills_agent`.
+{
+    "reward": 0.46666666666666656,
+    "mask_sample": 0.0,
+    "procedure": 1.0,
+    "decision": 0.1111111111111111
+}
+
+Collecting rollouts:   0%|          | 0/12 [00:03<?, ?it/s]                                                           Finished 10 / 12 rollouts (83%) in 0:00:03 (176.30 rollouts/min). Examples left:
+1. ticketnow_desk_skills_agent: 2
+Found 10 / 12 (83.33%) rollouts for `ticketnow_desk_skills_agent`.
+{
+    "reward": 0.5199999999999999,
+    "mask_sample": 0.0,
+    "procedure": 1.0,
+    "decision": 0.2
+}
+
+Collecting rollouts:   0%|          | 0/12 [00:03<?, ?it/s]Collecting rollouts:  83%|████████▎ | 10/12 [00:03<00:00,  2.95it/s]                                                                    Finished 11 / 12 rollouts (91%) in 0:00:03 (176.55 rollouts/min). Examples left:
+1. ticketnow_desk_skills_agent: 1
+Found 11 / 12 (91.67%) rollouts for `ticketnow_desk_skills_agent`.
+{
+    "reward": 0.509090909090909,
+    "mask_sample": 0.0,
+    "procedure": 1.0,
+    "decision": 0.18181818181818182
+}
+
+Collecting rollouts:  83%|████████▎ | 10/12 [00:03<00:00,  2.95it/s]                                                                    Finished 12 / 12 rollouts (100%) in 0:00:04 (176.45 rollouts/min). Examples left:
+
+Found 12 / 12 (100.00%) rollouts for `ticketnow_desk_skills_agent`.
+{
+    "reward": 0.5,
+    "mask_sample": 0.0,
+    "procedure": 1.0,
+    "decision": 0.16666666666666666
+}
+
+Collecting rollouts:  83%|████████▎ | 10/12 [00:04<00:00,  2.95it/s]Collecting rollouts: 100%|██████████| 12/12 [00:04<00:00,  2.95it/s]
+Per-task latency over 12 completed rollout(s): median 0.0 min, p90 0.0 min, p99 0.0 min, max 0.0 min
+Task-time delivered: 0.0 task-hours
+Sorting results to ensure consistent ordering
+Computing aggregate metrics
+
+Key metrics for ticketnow_desk_skills_agent:
+{
+    "mean/reward": 0.5000000000000001,
+    "mean/procedure": 1.0,
+    "mean/decision": 0.16666666666666666,
+    "mean/input_tokens": 10.0,
+    "mean/output_tokens": 10.0,
+    "mean/total_tokens": 20.0
+}
+Finished rollout collection! View results at:
+Fully materialized inputs: results/without_priority_matrix_materialized_inputs.jsonl
+Rollouts: results/without_priority_matrix.jsonl
+Aggregate metrics: results/without_priority_matrix_aggregate_metrics.json
+Rollout health: 12 checked, 0 healthy, 0 unhealthy, 12 unobserved
+Quality summary: results/quality_summary.json

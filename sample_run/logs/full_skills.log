@@ -1,17 +1,16 @@
 Clearing output fpath since `resume_from_cache=False`!
-Reading rows: 0it [00:00, ?it/s]Reading rows: 5it [00:00, 50655.85it/s]
-Routing rows via agent_map {'_default': 'northwind_desk_skills_agent'}
+Reading rows: 0it [00:00, ?it/s]Reading rows: 12it [00:00, 76144.70it/s]
+Routing rows via agent_map {'_default': 'ticketnow_desk_skills_agent'}
 Overriding responses_create_params fields with {'temperature': 0}
 Repeating rows 1 times (in a pattern of abc to aabbcc)!
-Using skills from skills/full (hash=02d6d516ea52, 3 skill(s): close-the-ticket, escalation-playbook, refund-policy)
-Preprocessing and repeating rows:   0%|          | 0/5 [00:00<?, ?it/s]Preprocessing and repeating rows: 100%|██████████| 5/5 [00:00<00:00, 26149.03it/s]
-Writing materialized rows:   0%|          | 0/5 [00:00<?, ?it/s]Writing materialized rows: 100%|██████████| 5/5 [00:00<00:00, 77385.68it/s]
+Using skills from skills/full (hash=b3c46d3e38b1, 4 skill(s): access-request-policy, priority-matrix, security-first-response, ticket-classification)
+Preprocessing and repeating rows:   0%|          | 0/12 [00:00<?, ?it/s]Preprocessing and repeating rows: 100%|██████████| 12/12 [00:00<00:00, 54120.05it/s]
+Writing materialized rows:   0%|          | 0/12 [00:00<?, ?it/s]Writing materialized rows: 100%|██████████| 12/12 [00:00<00:00, 86629.34it/s]
 Querying with 1 concurrent requests
-[2026-11-12 02:32:10,085][nemo_gym.telemetry.connection_pool][INFO] - aiohttp connection pool capacity for this server/CLI process group: workers=1 aggregate_total=102400 aggregate_per_host=1024 effective_total=102400 effective_per_host=1024 per_worker_per_host=1024 intended_per_worker=None intended_per_host_per_worker=None file_descriptor_soft_limit=524288 ephemeral_ports_per_destination=28232. The aiohttp total limit is a scheduling limit, not a strict open-socket cap across multiple hosts.
-Collecting rollouts:   0%|          | 0/5 [00:00<?, ?it/s]                                                          Collecting rollouts:   0%|          | 0/5 [00:00<?, ?it/s]                                                          Collecting rollouts:   0%|          | 0/5 [00:00<?, ?it/s]                                                          Collecting rollouts:   0%|          | 0/5 [00:01<?, ?it/s]                                                          Collecting rollouts:   0%|          | 0/5 [00:01<?, ?it/s]                                                          Collecting rollouts:   0%|          | 0/5 [00:01<?, ?it/s]Collecting rollouts: 100%|██████████| 5/5 [00:01<00:00,  2.59it/s]
-Finished 1 / 5 rollouts (20%) in 0:00:00 (165.75 rollouts/min). Examples left:
-1. northwind_desk_skills_agent: 4
-Found 1 / 5 (20.00%) rollouts for `northwind_desk_skills_agent`.
+[2026-11-12 04:18:50,494][nemo_gym.telemetry.connection_pool][INFO] - aiohttp connection pool capacity for this server/CLI process group: workers=1 aggregate_total=102400 aggregate_per_host=1024 effective_total=102400 effective_per_host=1024 per_worker_per_host=1024 intended_per_worker=None intended_per_host_per_worker=None file_descriptor_soft_limit=524288 ephemeral_ports_per_destination=28232. The aiohttp total limit is a scheduling limit, not a strict open-socket cap across multiple hosts.
+Collecting rollouts:   0%|          | 0/12 [00:00<?, ?it/s]                                                           Finished 1 / 12 rollouts (8%) in 0:00:00 (143.71 rollouts/min). Examples left:
+1. ticketnow_desk_skills_agent: 11
+Found 1 / 12 (8.33%) rollouts for `ticketnow_desk_skills_agent`.
 {
     "reward": 1.0,
     "mask_sample": 0.0,
@@ -19,9 +18,9 @@ Found 1 / 5 (20.00%) rollouts for `northwind_desk_skills_agent`.
     "decision": 1.0
 }
 
-Finished 2 / 5 rollouts (40%) in 0:00:00 (159.04 rollouts/min). Examples left:
-1. northwind_desk_skills_agent: 3
-Found 2 / 5 (40.00%) rollouts for `northwind_desk_skills_agent`.
+Collecting rollouts:   0%|          | 0/12 [00:00<?, ?it/s]                                                           Finished 2 / 12 rollouts (16%) in 0:00:00 (139.32 rollouts/min). Examples left:
+1. ticketnow_desk_skills_agent: 10
+Found 2 / 12 (16.67%) rollouts for `ticketnow_desk_skills_agent`.
 {
     "reward": 1.0,
     "mask_sample": 0.0,
@@ -29,9 +28,9 @@ Found 2 / 5 (40.00%) rollouts for `northwind_desk_skills_agent`.
     "decision": 1.0
 }
 
-Finished 3 / 5 rollouts (60%) in 0:00:01 (156.16 rollouts/min). Examples left:
-1. northwind_desk_skills_agent: 2
-Found 3 / 5 (60.00%) rollouts for `northwind_desk_skills_agent`.
+Collecting rollouts:   0%|          | 0/12 [00:00<?, ?it/s]                                                           Finished 3 / 12 rollouts (25%) in 0:00:01 (137.97 rollouts/min). Examples left:
+1. ticketnow_desk_skills_agent: 9
+Found 3 / 12 (25.00%) rollouts for `ticketnow_desk_skills_agent`.
 {
     "reward": 1.0,
     "mask_sample": 0.0,
@@ -39,9 +38,9 @@ Found 3 / 5 (60.00%) rollouts for `northwind_desk_skills_agent`.
     "decision": 1.0
 }
 
-Finished 4 / 5 rollouts (80%) in 0:00:01 (154.84 rollouts/min). Examples left:
-1. northwind_desk_skills_agent: 1
-Found 4 / 5 (80.00%) rollouts for `northwind_desk_skills_agent`.
+Collecting rollouts:   0%|          | 0/12 [00:01<?, ?it/s]                                                           Finished 4 / 12 rollouts (33%) in 0:00:01 (136.89 rollouts/min). Examples left:
+1. ticketnow_desk_skills_agent: 8
+Found 4 / 12 (33.33%) rollouts for `ticketnow_desk_skills_agent`.
 {
     "reward": 1.0,
     "mask_sample": 0.0,
@@ -49,9 +48,9 @@ Found 4 / 5 (80.00%) rollouts for `northwind_desk_skills_agent`.
     "decision": 1.0
 }
 
-Finished 5 / 5 rollouts (100%) in 0:00:01 (154.61 rollouts/min). Examples left:
-
-Found 5 / 5 (100.00%) rollouts for `northwind_desk_skills_agent`.
+Collecting rollouts:   0%|          | 0/12 [00:01<?, ?it/s]                                                           Finished 5 / 12 rollouts (41%) in 0:00:02 (137.30 rollouts/min). Examples left:
+1. ticketnow_desk_skills_agent: 7
+Found 5 / 12 (41.67%) rollouts for `ticketnow_desk_skills_agent`.
 {
     "reward": 1.0,
     "mask_sample": 0.0,
@@ -59,12 +58,83 @@ Found 5 / 5 (100.00%) rollouts for `northwind_desk_skills_agent`.
     "decision": 1.0
 }
 
-Per-task latency over 5 completed rollout(s): median 0.0 min, p90 0.0 min, p99 0.0 min, max 0.0 min
+Collecting rollouts:   0%|          | 0/12 [00:02<?, ?it/s]                                                           Finished 6 / 12 rollouts (50%) in 0:00:02 (136.95 rollouts/min). Examples left:
+1. ticketnow_desk_skills_agent: 6
+Found 6 / 12 (50.00%) rollouts for `ticketnow_desk_skills_agent`.
+{
+    "reward": 1.0,
+    "mask_sample": 0.0,
+    "procedure": 1.0,
+    "decision": 1.0
+}
+
+Collecting rollouts:   0%|          | 0/12 [00:02<?, ?it/s]                                                           Finished 7 / 12 rollouts (58%) in 0:00:03 (137.02 rollouts/min). Examples left:
+1. ticketnow_desk_skills_agent: 5
+Found 7 / 12 (58.33%) rollouts for `ticketnow_desk_skills_agent`.
+{
+    "reward": 1.0,
+    "mask_sample": 0.0,
+    "procedure": 1.0,
+    "decision": 1.0
+}
+
+Collecting rollouts:   0%|          | 0/12 [00:03<?, ?it/s]                                                           Finished 8 / 12 rollouts (66%) in 0:00:03 (138.68 rollouts/min). Examples left:
+1. ticketnow_desk_skills_agent: 4
+Found 8 / 12 (66.67%) rollouts for `ticketnow_desk_skills_agent`.
+{
+    "reward": 1.0,
+    "mask_sample": 0.0,
+    "procedure": 1.0,
+    "decision": 1.0
+}
+
+Collecting rollouts:   0%|          | 0/12 [00:03<?, ?it/s]                                                           Finished 9 / 12 rollouts (75%) in 0:00:03 (137.85 rollouts/min). Examples left:
+1. ticketnow_desk_skills_agent: 3
+Found 9 / 12 (75.00%) rollouts for `ticketnow_desk_skills_agent`.
+{
+    "reward": 1.0,
+    "mask_sample": 0.0,
+    "procedure": 1.0,
+    "decision": 1.0
+}
+
+Collecting rollouts:   0%|          | 0/12 [00:03<?, ?it/s]                                                           Finished 10 / 12 rollouts (83%) in 0:00:04 (137.20 rollouts/min). Examples left:
+1. ticketnow_desk_skills_agent: 2
+Found 10 / 12 (83.33%) rollouts for `ticketnow_desk_skills_agent`.
+{
+    "reward": 1.0,
+    "mask_sample": 0.0,
+    "procedure": 1.0,
+    "decision": 1.0
+}
+
+Collecting rollouts:   0%|          | 0/12 [00:04<?, ?it/s]Collecting rollouts:  83%|████████▎ | 10/12 [00:04<00:00,  2.29it/s]                                                                    Finished 11 / 12 rollouts (91%) in 0:00:04 (136.79 rollouts/min). Examples left:
+1. ticketnow_desk_skills_agent: 1
+Found 11 / 12 (91.67%) rollouts for `ticketnow_desk_skills_agent`.
+{
+    "reward": 1.0,
+    "mask_sample": 0.0,
+    "procedure": 1.0,
+    "decision": 1.0
+}
+
+Collecting rollouts:  83%|████████▎ | 10/12 [00:04<00:00,  2.29it/s]                                                                    Finished 12 / 12 rollouts (100%) in 0:00:05 (136.74 rollouts/min). Examples left:
+
+Found 12 / 12 (100.00%) rollouts for `ticketnow_desk_skills_agent`.
+{
+    "reward": 1.0,
+    "mask_sample": 0.0,
+    "procedure": 1.0,
+    "decision": 1.0
+}
+
+Collecting rollouts:  83%|████████▎ | 10/12 [00:05<00:00,  2.29it/s]Collecting rollouts: 100%|██████████| 12/12 [00:05<00:00,  2.28it/s]
+Per-task latency over 12 completed rollout(s): median 0.0 min, p90 0.0 min, p99 0.0 min, max 0.0 min
 Task-time delivered: 0.0 task-hours
 Sorting results to ensure consistent ordering
 Computing aggregate metrics
 
-Key metrics for northwind_desk_skills_agent:
+Key metrics for ticketnow_desk_skills_agent:
 {
     "mean/reward": 1.0,
     "mean/procedure": 1.0,
@@ -77,5 +147,5 @@ Finished rollout collection! View results at:
 Fully materialized inputs: results/full_skills_materialized_inputs.jsonl
 Rollouts: results/full_skills.jsonl
 Aggregate metrics: results/full_skills_aggregate_metrics.json
-Rollout health: 5 checked, 0 healthy, 0 unhealthy, 5 unobserved
+Rollout health: 12 checked, 0 healthy, 0 unhealthy, 12 unobserved
 Quality summary: results/quality_summary.json

@@ -1,4 +1,4 @@
-"""Run the three Northwind configurations through NeMo Gym.
+"""Run the three TicketNow configurations through NeMo Gym.
 
 The briefing page calls this for Mock model and Live model. Recorded sample
 never reaches it. The CLI in ``run_demo.sh`` stays the terminal path.
@@ -21,8 +21,8 @@ import yaml
 from demo.present import build_view
 from demo.report import write_report
 from demo.settings import ModelSettings, model_settings, nemo_gym_version
-from demo.skill_sets import sync_without_refund
-from resources_servers.northwind_desk.policy import render_tasks_jsonl
+from demo.skill_sets import sync_without_priority_matrix
+from resources_servers.ticketnow_desk.policy import CASES, render_tasks_jsonl
 
 
 StepCallback = Callable[[str, str, str], None]
@@ -34,11 +34,11 @@ MOCK_URL = f"http://127.0.0.1:{MOCK_PORT}/v1/models"
 
 VARIANTS = (
     ("no_skills", "Score the tickets with no skills", []),
-    ("full_skills", "Score the tickets with all three skills", ["+skills.path=skills/full"]),
+    ("full_skills", "Score the tickets with all four skills", ["+skills.path=skills/full"]),
     (
-        "without_refund_policy",
-        "Score the tickets with the refund skill removed",
-        ["+skills.path=skills/without_refund_policy"],
+        "without_priority_matrix",
+        "Score the tickets with the priority matrix removed",
+        ["+skills.path=skills/without_priority_matrix"],
     ),
 )
 
@@ -80,7 +80,7 @@ def model_env(mode: str, source: Mapping[str, str] | None = None) -> dict[str, s
         return {
             "POLICY_BASE_URL": f"http://127.0.0.1:{MOCK_PORT}/v1",
             "POLICY_API_KEY": "mock",
-            "POLICY_MODEL_NAME": "mock-desk-associate",
+            "POLICY_MODEL_NAME": "mock-it-lead",
             "POLICY_MODEL_TYPE": "vllm_model",
             "POLICY_REASONING_PARSER": "false",
         }
@@ -199,7 +199,7 @@ def _child_env(root: Path, policy: Mapping[str, str]) -> dict[str, str]:
 def _venvs_ready(root: Path, model_type: str) -> bool:
     model_dir = "vllm_model" if model_type == "vllm_model" else "openai_model"
     needed = [
-        root / ".gym_venvs/resources_servers/northwind_desk/.venv/bin/python",
+        root / ".gym_venvs/resources_servers/ticketnow_desk/.venv/bin/python",
         root / ".gym_venvs/responses_api_agents/desk_skills_agent/.venv/bin/python",
         root / ".gym_venvs/environment_servers/legacy_agent/.venv/bin/python",
         root / f".gym_venvs/responses_api_models/{model_dir}/.venv/bin/python",
@@ -231,8 +231,8 @@ def _source_label(mode: str, settings_env: Mapping[str, str]) -> tuple[str, str,
     if mode == "mock":
         return (
             "This run executed inside NeMo Gym against the local mock model "
-            f"mock-desk-associate. NeMo Gym {version}. This is not a call to NVIDIA or OpenAI.",
-            "mock-desk-associate",
+            f"mock-it-lead. NeMo Gym {version}. This is not a call to NVIDIA or OpenAI.",
+            "mock-it-lead",
             f"127.0.0.1:{MOCK_PORT}",
         )
     settings = model_settings(settings_env)
@@ -273,12 +273,13 @@ def execute_gym_run(
     servers_log = results / "servers.log"
 
     try:
-        on_step("prepare", "running", "Writing the five tickets and the skill folders.")
-        sync_without_refund(root)
-        data = root / "resources_servers" / "northwind_desk" / "data"
+        count = len(CASES)
+        on_step("prepare", "running", f"Writing the {count} tickets and the skill folders.")
+        sync_without_priority_matrix(root)
+        data = root / "resources_servers" / "ticketnow_desk" / "data"
         data.mkdir(parents=True, exist_ok=True)
         (data / "tasks.jsonl").write_text(render_tasks_jsonl(), encoding="utf-8")
-        on_step("prepare", "done", "Five tickets are ready. The task file does not name a skill.")
+        on_step("prepare", "done", f"{count} tickets are ready. The task file does not name a skill.")
 
         if mode == "mock":
             if port_in_use(MOCK_PORT):
@@ -286,7 +287,7 @@ def execute_gym_run(
                     f"Port {MOCK_PORT} is already in use, so the mock model cannot start. "
                     "Recorded sample does not need it."
                 )
-            on_step("model", "running", "Starting mock-desk-associate.")
+            on_step("model", "running", "Starting mock-it-lead.")
             mock_log = results / "mock.log"
             with mock_log.open("w", encoding="utf-8") as handle:
                 mock = subprocess.Popen(
@@ -343,7 +344,7 @@ def execute_gym_run(
                     "env",
                     "start",
                     "--resources-server",
-                    "northwind_desk",
+                    "ticketnow_desk",
                     "--model-type",
                     model_type,
                 ],
@@ -386,7 +387,7 @@ def execute_gym_run(
 
         temperature = policy.get("DEMO_TEMPERATURE") or os.environ.get("DEMO_TEMPERATURE", "0") or "0"
         for key, _label, extra in VARIANTS:
-            on_step(key, "running", "NeMo Gym is collecting five rollouts.")
+            on_step(key, "running", f"NeMo Gym is collecting {len(CASES)} rollouts.")
             log_path = results / f"{key}.log"
             command = [
                 gym_bin,
@@ -394,9 +395,9 @@ def execute_gym_run(
                 "run",
                 "--no-serve",
                 "--agent",
-                "northwind_desk_skills_agent",
+                "ticketnow_desk_skills_agent",
                 "--input",
-                "resources_servers/northwind_desk/data/tasks.jsonl",
+                "resources_servers/ticketnow_desk/data/tasks.jsonl",
                 "--output",
                 str(results / f"{key}.jsonl"),
                 "--concurrency",
@@ -419,11 +420,11 @@ def execute_gym_run(
             if completed.returncode != 0:
                 tail = _scrub(_tail(log_path), secrets)
                 raise DemoRunError(f"Scoring {key.replace('_', ' ')} failed.", tail)
-            on_step(key, "done", "Five rollouts scored.")
+            on_step(key, "done", f"{len(CASES)} rollouts scored.")
 
         on_step("report", "running", "Comparing the three runs.")
         label, model_name, host = _source_label(mode, policy)
-        write_report(results, results / "comparison.md", results / "trace.md", "dented-kettle")
+        write_report(results, results / "comparison.md", results / "trace.md", "offboard-friday")
         banner = f"> {label}\n\n"
         for name in ("comparison.md", "trace.md"):
             target = results / name
@@ -461,21 +462,21 @@ def run_steps(mode: str) -> list[dict[str, str]]:
     """Checklist shown while a run is in progress. Recorded sample completes it at once."""
     if mode == "recorded":
         return [
-            {"id": "prepare", "label": "Prepare the five tickets", "state": "done", "detail": "Using the tickets from the recorded run."},
-            {"id": "model", "label": "Call a model", "state": "done", "detail": "No model was called. The recording used mock-desk-associate."},
+            {"id": "prepare", "label": "Prepare the tickets", "state": "done", "detail": "Using the tickets from the recorded run."},
+            {"id": "model", "label": "Call a model", "state": "done", "detail": "No model was called. The recording used mock-it-lead."},
             {"id": "gym", "label": "Start NeMo Gym", "state": "done", "detail": "NeMo Gym already scored this recording."},
             {"id": "no_skills", "label": "Score the tickets with no skills", "state": "done", "detail": "Loaded from sample_run."},
-            {"id": "full_skills", "label": "Score the tickets with all three skills", "state": "done", "detail": "Loaded from sample_run."},
-            {"id": "without_refund_policy", "label": "Score the tickets with the refund skill removed", "state": "done", "detail": "Loaded from sample_run."},
+            {"id": "full_skills", "label": "Score the tickets with all four skills", "state": "done", "detail": "Loaded from sample_run."},
+            {"id": "without_priority_matrix", "label": "Score the tickets with the priority matrix removed", "state": "done", "detail": "Loaded from sample_run."},
             {"id": "report", "label": "Build the comparison", "state": "done", "detail": "Comparison ready."},
         ]
     model_label = "Start the mock model" if mode == "mock" else "Check the live model"
     return [
-        {"id": "prepare", "label": "Prepare the five tickets", "state": "pending", "detail": ""},
+        {"id": "prepare", "label": "Prepare the tickets", "state": "pending", "detail": ""},
         {"id": "model", "label": model_label, "state": "pending", "detail": ""},
         {"id": "gym", "label": "Start NeMo Gym", "state": "pending", "detail": ""},
         {"id": "no_skills", "label": "Score the tickets with no skills", "state": "pending", "detail": ""},
-        {"id": "full_skills", "label": "Score the tickets with all three skills", "state": "pending", "detail": ""},
-        {"id": "without_refund_policy", "label": "Score the tickets with the refund skill removed", "state": "pending", "detail": ""},
+        {"id": "full_skills", "label": "Score the tickets with all four skills", "state": "pending", "detail": ""},
+        {"id": "without_priority_matrix", "label": "Score the tickets with the priority matrix removed", "state": "pending", "detail": ""},
         {"id": "report", "label": "Build the comparison", "state": "pending", "detail": ""},
     ]

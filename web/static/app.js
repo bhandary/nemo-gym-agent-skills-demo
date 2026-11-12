@@ -4,7 +4,7 @@ const state = {
   renderedView: null,
   run: null,
   mode: "recorded",
-  caseId: "dented-kettle",
+  caseId: "offboard-friday",
   variant: "full_skills",
   step: 0,
   skill: null,
@@ -176,8 +176,8 @@ function renderStory() {
   brief.append(intro);
 
   const skills = el("section", "panel");
-  skills.append(el("h2", "", "Three skills"));
-  skills.append(el("p", "reward-note", "Open a playbook. The refund numbers are in the rate card, not in the handoff."));
+  skills.append(el("h2", "", `${data.skills.length} skills`));
+  skills.append(el("p", "reward-note", "Open a playbook. The priority levels are in the matrix, not in the handoff."));
   const skillList = el("div", "skill-list");
   for (const skill of data.skills) {
     const button = el("button", "textish");
@@ -191,7 +191,7 @@ function renderStory() {
   brief.append(skills);
 
   const tickets = el("section", "panel");
-  tickets.append(el("h2", "", "Five tickets"));
+  tickets.append(el("h2", "", `${data.tickets.length} tickets`));
   tickets.append(el("p", "reward-note", "Choose a ticket to walk the episode. The policy line is what the grader expects."));
   const ticketList = el("div", "ticket-list");
   ticketList.id = "ticket-list";
@@ -213,19 +213,9 @@ function renderStory() {
   }
   tickets.append(ticketList);
   brief.append(tickets);
-
-  const notes = el("section", "panel");
-  const details = document.createElement("details");
-  details.open = window.matchMedia("(min-width: 901px)").matches;
-  details.append(el("summary", "", "Presenter notes, five minutes"));
-  for (const beat of data.talk_track) {
-    const row = el("div", "beat");
-    row.append(el("b", "", beat.at));
-    row.append(el("p", "", beat.say));
-    details.append(row);
+  if (!data.tickets.some((ticket) => ticket.case_id === state.caseId) && data.tickets.length) {
+    state.caseId = data.tickets[0].case_id;
   }
-  notes.append(details);
-  brief.append(notes);
   markTickets();
 }
 
@@ -285,6 +275,12 @@ function renderAlert() {
   }
 }
 
+function variantClass(id) {
+  if (id === "full_skills") return "full";
+  if (id === "without_priority_matrix") return "missing";
+  return "no";
+}
+
 function cellMeter(cell) {
   const wrap = el("div", "score-cell");
   wrap.dataset.label = cell.label;
@@ -296,7 +292,7 @@ function cellMeter(cell) {
   line.append(el("span", "", rewardText(cell.reward)));
   line.append(el("span", cell.passed ? "mark pass" : "mark fail", cell.passed ? "Pass" : "Fail"));
   wrap.append(line);
-  const meter = el("div", `meter ${cell.variant === "full_skills" ? "full" : cell.variant === "without_refund_policy" ? "missing" : "no"}`);
+  const meter = el("div", `meter ${variantClass(cell.variant)}`);
   const bar = document.createElement("i");
   const width = Math.max(0, Math.min(1, Number(cell.reward) || 0)) * 100;
   bar.style.width = `${width}%`;
@@ -332,13 +328,8 @@ function renderResults() {
   for (const item of view.comparison.summary) {
     const card = el("div", `mean ${item.variant === "full_skills" ? "full" : ""}`);
     const label = el("span");
-    const swatch = el("i", `swatch ${item.variant === "full_skills" ? "full" : item.variant === "without_refund_policy" ? "missing" : "no"}`);
-    const names = {
-      no_skills: "No skills",
-      full_skills: "Full skills",
-      without_refund_policy: "Refund skill removed",
-    };
-    label.append(swatch, document.createTextNode(names[item.variant] || item.label));
+    const swatch = el("i", `swatch ${variantClass(item.variant)}`);
+    label.append(swatch, document.createTextNode(item.label));
     card.append(label);
     card.append(el("b", "", meanText(item.mean_reward)));
     card.append(el("span", "", `${item.correct} of ${item.total} decisions correct`));
@@ -350,7 +341,7 @@ function renderResults() {
   sheet.setAttribute("role", "table");
   const head = el("div", "sheet-row sheet-head");
   head.setAttribute("role", "row");
-  const headers = ["Ticket", "No skills", "Full skills", "Refund skill removed"];
+  const headers = ["Ticket", ...view.variants.map((variant) => variant.label)];
   for (const text of headers) {
     const cell = el("div", "", text);
     cell.setAttribute("role", "columnheader");
@@ -396,13 +387,8 @@ function renderTrace() {
   const chips = el("div", "chips");
   chips.setAttribute("role", "group");
   chips.setAttribute("aria-label", "Which configuration");
-  const names = {
-    no_skills: "No skills",
-    full_skills: "Full skills",
-    without_refund_policy: "Refund skill removed",
-  };
   for (const variant of view.variants) {
-    const button = el("button", `chip ${state.variant === variant.id ? "is-on" : ""}`, names[variant.id] || variant.label);
+    const button = el("button", `chip ${state.variant === variant.id ? "is-on" : ""}`, variant.label);
     button.type = "button";
     button.addEventListener("click", () => {
       state.variant = variant.id;
@@ -425,7 +411,7 @@ function renderTrace() {
   if (trace.skills_loaded.length) {
     meta.textContent = `Skills offered: ${trace.skills_loaded.join(", ")}. Hash ${trace.skills_hash || "none"}.`;
   } else {
-    meta.textContent = "No skills were offered on this run. The associate had the handoff and the tools only.";
+    meta.textContent = "No skills were offered on this run. The lead had the handoff and the tools only.";
   }
   host.append(meta);
 
@@ -455,19 +441,17 @@ function renderTrace() {
   body.append(el("p", "", step.detail));
   if (step.filing) {
     const filing = step.filing;
-    const refund = typeof filing.refund_usd === "number" ? `$${filing.refund_usd.toFixed(2)}` : String(filing.refund_usd ?? "—");
-    body.append(el("p", "", `Disposition ${filing.disposition || "—"}. Refund ${refund}. Escalate ${filing.escalate ? "yes" : "no"}.`));
-    if (filing.customer_message) {
-      body.append(el("p", "handoff", filing.customer_message));
+    body.append(el("p", "", `${filing.ticket_type || "—"} · ${filing.category || "—"} · ${filing.priority || "—"} · ${filing.assignment_group || "—"}. Actions ${filing.actions || "—"}.`));
+    if (filing.requester_message) {
+      body.append(el("p", "handoff", filing.requester_message));
     }
   }
   if (step.score) {
     const score = step.score;
     body.append(el("p", "", `Procedure ${score.procedure.toFixed(0)} · decision ${score.decision.toFixed(0)} · reward ${rewardText(score.reward)}.`));
     body.append(el("p", "", `Policy: ${score.expected_line}`));
-    if (score.filed_disposition) {
-      const refund = typeof score.filed_refund_usd === "number" ? `$${score.filed_refund_usd.toFixed(2)}` : String(score.filed_refund_usd);
-      body.append(el("p", "", `Filed: ${score.filed_disposition}, refund ${refund}, escalate ${score.filed_escalate ? "yes" : "no"}.`));
+    if (score.filed_ticket_type) {
+      body.append(el("p", "", `Filed: ${score.filed_ticket_type} · ${score.filed_category} · ${score.filed_priority} · ${score.filed_assignment_group}. Actions ${score.filed_actions}.`));
     } else {
       body.append(el("p", "", "Filed: nothing."));
     }

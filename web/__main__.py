@@ -17,7 +17,7 @@ def main() -> None:
         os.environ["PATH"] = str(bindir) + os.pathsep + os.environ.get("PATH", "")
     port = int(os.environ.get("PORT", "43123"))
     host = os.environ.get("HOST", "0.0.0.0")
-    print(f"Northwind briefing on http://127.0.0.1:{port}", file=sys.stderr, flush=True)
+    print(f"TicketNow IT service desk on http://127.0.0.1:{port}", file=sys.stderr, flush=True)
     uvicorn.run("web.server:app", host=host, port=port, log_level="info")
 
 
