@@ -1,0 +1,27 @@
+northwind_desk:
+  resources_servers:
+    northwind_desk:
+      entrypoint: app.py
+      domain: agent
+      verified: false
+      description: Northwind support desk. Facts from tools, reward from company policy.
+
+northwind_desk_skills_agent:
+  responses_api_agents:
+    desk_skills_agent:
+      entrypoint: app.py
+      resources_server:
+        type: resources_servers
+        name: northwind_desk
+      model_server:
+        type: responses_api_models
+        name: policy_model
+      max_steps: 10
+
+northwind_desk_environment_server:
+  environment_servers:
+    legacy_agent:
+      entrypoint: app.py
+      agent_server:
+        type: responses_api_agents
+        name: northwind_desk_skills_agent

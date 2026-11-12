@@ -1,0 +1,12 @@
+.venv/
+.gym_venvs/
+env.yaml
+.env
+results/
+outputs/
+agent-tools/
+__pycache__/
+.pytest_cache/
+*.pyc
+.ruff_cache/
+*.egg-info/
