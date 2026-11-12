@@ -15,7 +15,7 @@ End state: the second response is status 409, `detail.run.id` equals `GET /api/r
 
 ## Driving it with Playwright and curl
 
-Start the page with `DEMO_SHOW_MOCK=1`, choose Mock model (see [mock-run.md](mock-run.md)), and wait until `#run-button` reads `Running…`. Then:
+Start the page with `DEMO_SHOW_MOCK=1` and press Run (see [mock-run.md](mock-run.md)). There is no mode control. Wait until `#run-button` reads `Running…`. Then:
 
 ```bash
 curl -s -D - -o "$EVIDENCE/second-post.json" -X POST "$BASE/api/runs" \
@@ -33,7 +33,7 @@ Leave the original run in place until it reaches `succeeded` or `failed`. Then c
 
 FastAPI nests the payload under `detail`. A check that looks for a top-level `message` or `run` fails even when the page handled the 409 correctly.
 
-Recorded sample cannot produce this state. The POST returns the finished run. If `modes.mock.enabled` is false, the gym command is missing and the journey fails. The reason is `modes.mock.reason`. Hiding the radio (`DEMO_SHOW_MOCK` unset) does not disable that API. Do not pretend a finished recorded POST is a conflict.
+A recorded POST cannot produce this state. It returns the finished run. If `modes.mock.enabled` is false, the gym command is missing and the journey fails. The reason is `modes.mock.reason`. Leaving `DEMO_SHOW_MOCK` unset does not disable that API. Do not pretend a finished recorded POST is a conflict. The page's Run starts live unless that flag is set, so do not press Run on the default page to manufacture a 409.
 
 Two page processes do not share the in-memory run list. A 409 from one port says nothing about a server on another port. They still share ports 11000 and 43117, so the second process's Mock run fails at Gym startup instead of returning 409.
 

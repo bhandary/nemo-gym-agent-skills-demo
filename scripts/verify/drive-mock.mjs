@@ -84,19 +84,18 @@ page.on("response", async (response) => {
 });
 
 try {
+  if (!briefing.body.show_mock) {
+    throw new Error("Run starts live unless the server was launched with DEMO_SHOW_MOCK=1.");
+  }
   await page.goto(base, { waitUntil: "domcontentloaded" });
   await page.locator("#comparison h2", { hasText: "What the grader awarded" }).waitFor();
-  await page.locator("#banner strong", { hasText: "Recorded sample" }).waitFor();
-
-  const mock = page.locator('input[name="mode"][value="mock"]');
-  if ((await mock.count()) === 0) {
-    throw new Error("Mock model is not on the page. Relaunch with DEMO_SHOW_MOCK=1 scripts/verify/launch.sh.");
+  if (await page.locator("#modes, input[name='mode']").count()) {
+    throw new Error("A mode control is on the page. Mock is started by Run when DEMO_SHOW_MOCK=1, not by a radio.");
   }
-  if (await mock.isDisabled()) {
-    throw new Error("The Mock model radio is disabled. The briefing reason is in briefing.json.");
+  if (await page.locator("#run-button").isDisabled()) {
+    const reason = (await page.locator("#mode-detail").innerText()).trim();
+    throw new Error(reason || "Run is disabled. The briefing reason is in briefing.json.");
   }
-  await mock.check();
-  await page.locator("#mode-detail").waitFor();
 
   for (const name of SKILLS) {
     const box = page.locator(`#picker input[type="checkbox"][value="${name}"]`);

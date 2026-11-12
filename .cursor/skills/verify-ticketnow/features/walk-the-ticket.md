@@ -33,8 +33,8 @@ Click the offboard card. Its `aria-pressed` becomes `true`. Click `#trace .pager
 
 ## Gotchas
 
-A playbook mix that is not in the view on screen has no trace, and the card says `Not scored yet`. On Recorded sample the score table instead drops that mix and says `Not in the recorded sample - run Live to score it`. That is a failed walk for this file when the claim was the recorded offboard comparison. Restore all four checkboxes. The recorded sample has no other mixes.
+A column the saved sample did not score has no trace, and the card says `Not scored yet`. With `DEMO_SHOW_RECORDED=1` the score table instead drops that mix and says `Not in the recorded sample - run Live to score it`. That is a failed walk for this file when the claim was the saved offboard comparison. Restore all four checkboxes. The saved sample has no other mixes.
 
 Clicking a ticket card resets the walk to step 1. Arrow keys do not move the walk while a skill dialog is open (`#skill-dialog`) or while a checkbox has focus.
 
-Recorded sample is enough for this end state. A Mock run that has not finished still shows the previous view, dimmed, until `status` is `succeeded`. Do not read Score off a dimmed table and call the new run verified.
+The saved sample is enough for this end state on the default page, because those three columns are already in `sample_run`. A run that has not finished still shows the previous view, dimmed, until `status` is `succeeded`. Do not read Score off a dimmed table and call the new run verified.

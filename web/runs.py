@@ -199,7 +199,7 @@ class RunManager:
             if state.mode != "recorded" and "Recorded sample" not in message:
                 message = (
                     message.rstrip()
-                    + " Recorded sample does not start NeMo Gym. Switch to that mode to keep presenting."
+                    + " Recorded sample does not start NeMo Gym. It stays available from the API."
                 )
             state.status = "failed"
             state.error = message

@@ -106,71 +106,9 @@ button { cursor: pointer; }
 
 .runbar {
   display: flex;
-  flex-direction: column;
-  gap: 0.7rem;
-  min-width: min(100%, 28rem);
-  margin: 0;
-}
-
-fieldset {
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-
-legend {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-}
-
-.modes {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.35rem;
-  padding: 0.3rem;
-  background: rgba(255, 250, 243, 0.8);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-}
-
-.modes label {
-  position: relative;
-  display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-  min-height: 2.4rem;
-  padding: 0.25rem 0.4rem;
-  border-radius: 999px;
-  color: var(--muted);
-  text-align: center;
-  font-size: 0.92rem;
-  font-weight: 640;
-}
-
-.modes label:has(input:checked) {
-  background: var(--forest);
-  color: #f7f3ea;
-}
-
-.modes label:has(input:disabled) {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.modes input {
-  position: absolute;
-  opacity: 0;
-  inset: 0;
+  min-width: min(100%, 22rem);
   margin: 0;
-}
-
-.modes label:has(input:focus-visible) {
-  outline: 2px solid var(--gold);
-  outline-offset: 2px;
 }
 
 .run-actions {

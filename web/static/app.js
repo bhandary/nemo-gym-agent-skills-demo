@@ -3,7 +3,6 @@ const state = {
   view: null,
   renderedView: null,
   run: null,
-  mode: "recorded",
   caseId: "offboard-friday",
   variant: "full_skills",
   step: 0,
@@ -16,6 +15,16 @@ const state = {
   pollTimer: null,
   notice: "",
 };
+
+function postedMode() {
+  return state.briefing && state.briefing.show_mock ? "mock" : "live";
+}
+
+function columnMode() {
+  if (state.run && (state.run.mode === "mock" || state.run.mode === "live")) return state.run.mode;
+  if (state.briefing && state.briefing.show_recorded && !state.briefing.show_mock) return "recorded";
+  return postedMode();
+}
 
 const $ = (id) => document.getElementById(id);
 
@@ -130,43 +139,8 @@ function renderMarkdown(markdown) {
   return root;
 }
 
-function renderModes() {
-  if (!state.briefing.modes[state.mode] || !state.briefing.modes[state.mode].enabled) {
-    state.mode = "recorded";
-  }
-  const host = $("modes");
-  host.replaceChildren();
-  const modes = [
-    ["recorded", "Recorded sample"],
-    ["live", "Live model"],
-  ];
-  if (state.briefing.show_mock && state.briefing.modes.mock) {
-    modes.splice(1, 0, ["mock", "Mock model"]);
-  }
-  for (const [id, label] of modes) {
-    const info = state.briefing.modes[id];
-    const wrap = document.createElement("label");
-    const input = document.createElement("input");
-    input.type = "radio";
-    input.name = "mode";
-    input.value = id;
-    input.checked = state.mode === id;
-    input.disabled = !info.enabled;
-    if (!info.enabled && info.reason) wrap.title = info.reason;
-    input.addEventListener("change", () => {
-      state.mode = id;
-      renderControls();
-      updatePickerSummary();
-      renderResults();
-      renderTrace();
-    });
-    wrap.append(input, document.createTextNode(label));
-    host.append(wrap);
-  }
-}
-
 function renderControls() {
-  const info = state.briefing.modes[state.mode];
+  const info = state.briefing.modes[postedMode()];
   const running = state.run && state.run.status === "running";
   $("run-button").disabled = running || !info.enabled;
   $("run-button").textContent = running ? "Running…" : "Run";
@@ -223,19 +197,19 @@ function ensureSelection() {
 }
 
 function scoreSource() {
-  if (state.mode === "recorded") return state.sample || state.view;
   if (state.run && (state.run.mode === "mock" || state.run.mode === "live") && state.run.view) return state.run.view;
   return state.sample || state.view;
 }
 
 function currentColumns() {
   ensureSelection();
+  const mode = columnMode();
   return TicketNowColumns.columnView({
-    mode: state.mode,
+    mode,
     selected: state.selectedSkills,
     compareWithoutMatrix: state.compareWithoutMatrix && state.selectedSkills.includes("priority-matrix"),
     view: scoreSource(),
-    run: state.mode === "recorded" ? null : state.run,
+    run: mode === "recorded" ? null : state.run,
   });
 }
 
@@ -347,12 +321,16 @@ function renderResults() {
   host.classList.toggle("is-dim", Boolean(state.run && state.run.status === "running"));
   host.replaceChildren();
   const banner = $("banner");
-  banner.hidden = false;
-  banner.className = `banner ${view.live_model ? "live" : "mock"}`;
+  const scored = state.run && state.run.view && state.run.status !== "running" ? state.run.view : null;
+  const shown = scored || (columnMode() === "recorded" ? view : null);
+  banner.hidden = !shown;
+  banner.className = shown && shown.live_model ? "banner live" : "banner mock";
   banner.replaceChildren();
-  const kicker = view.kind === "live" ? "Live model" : view.kind === "mock" ? "Mock model" : "Recorded sample";
-  banner.append(el("strong", "", kicker));
-  banner.append(el("p", "", view.source_label));
+  if (shown) {
+    const kicker = shown.kind === "live" ? "Live model" : shown.kind === "mock" ? "Mock model" : "Recorded sample";
+    banner.append(el("strong", "", kicker));
+    banner.append(el("p", "", shown.source_label));
+  }
 
   const display = currentColumns();
   const summaryById = new Map((view.comparison.summary || []).map((item) => [item.variant, item]));
@@ -515,7 +493,7 @@ function renderPicker() {
     el(
       "p",
       "picker-caption",
-      `These checkboxes are the same in ${state.briefing.show_mock ? "Recorded sample, Mock model, and Live model" : "Recorded sample and Live model"}. Leave them all on to score every playbook. Uncheck one to score the tickets without that playbook. A lead with no playbooks is always scored beside them.`,
+      "Leave them all on to score every playbook. Uncheck one to score the tickets without that playbook. A lead with no playbooks is always scored beside them.",
     ),
   );
   const list = el("div", "skill-checks");
@@ -779,7 +757,7 @@ async function startRun(event) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        mode: state.mode,
+        mode: postedMode(),
         skills: state.selectedSkills,
         compare_without_matrix: state.compareWithoutMatrix,
       }),
@@ -870,7 +848,6 @@ async function init() {
     state.briefing = briefing;
     state.sample = sample;
     state.view = sample;
-    renderModes();
     renderControls();
     renderStory();
     ensureSelection();

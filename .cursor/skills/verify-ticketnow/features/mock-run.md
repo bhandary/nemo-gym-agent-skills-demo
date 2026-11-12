@@ -2,7 +2,7 @@
 
 ## Sub-features
 
-- Mock model can be selected only when the gym command is installed.
+- The page has no mode control. With `DEMO_SHOW_MOCK=1`, Run starts the local mock, and only when the gym command is installed.
 - The four playbook checkboxes choose what is scored: `security-first-response`, `ticket-classification`, `access-request-policy`, `priority-matrix`.
 - The extra checkbox, "Also show these tickets with the priority matrix removed", adds the third column when the priority matrix is still selected.
 - Run starts NeMo Gym. The progress list updates, and Show technical details holds the last log lines.
@@ -10,7 +10,7 @@
 
 ## How to get to it (user POV)
 
-Start the page with `DEMO_SHOW_MOCK=1`. The mode picker then includes Mock model. Choose it. Leave all four playbooks checked and leave the priority-matrix checkbox checked. The line under the checkboxes reads `The comparison shows No skills, All four skills, Without the priority matrix.` Press Run. The button changes to Running…. When the run finishes the banner reads Mock model and the three means match the numbers above.
+Start the page with `DEMO_SHOW_MOCK=1`. There is no mode picker. Leave all four playbooks checked and leave the priority-matrix checkbox checked. The line under the checkboxes reads `The comparison shows No skills, All four skills, Without the priority matrix.` Press Run. The button changes to Running…. When the run finishes the banner reads Mock model and the three means match the numbers above.
 
 End state: `GET /api/runs/{id}` has `status` `succeeded` and `mode` `mock`, `log_tail` contains a `mean/reward` line, and `results/ui/<id>/` contains `no_skills_aggregate_metrics.json`, `full_skills_aggregate_metrics.json`, and `without_priority_matrix_aggregate_metrics.json`. The server stdout (`server.log`, and the container stdout on Railway) contains `[gym]` and `Started a local Ray instance.` The `[gym]` prefix is added when the line is copied to stdout. It is not stored in `log_tail`.
 
@@ -24,13 +24,13 @@ DEMO_SHOW_MOCK=1 scripts/verify/launch.sh
 node scripts/verify/drive-mock.mjs
 ```
 
-Without `DEMO_SHOW_MOCK=1` the Mock radio is absent and the script fails. `POST /api/runs` with `"mode":"mock"` still scores that selection when the radio is hidden. The click journey needs the radio.
+Without `DEMO_SHOW_MOCK=1` the script fails and does not press Run, because that button would start live. `POST /api/runs` with `"mode":"mock"` still scores that selection when the flag is unset. The click journey needs the flag so Run posts mock. There is never a mock radio.
 
 The script does the following, and fails closed if any step does not happen:
 
 1. `GET /api/briefing`. If `modes.mock.enabled` is false, write `proof.json` and exit. The reason is `modes.mock.reason`.
-2. Open the page. Wait until Recorded sample has painted `#comparison h2` `What the grader awarded`.
-3. Check `input[name="mode"][value="mock"]`. If that radio is disabled, fail.
+2. Open the page. Wait until `#comparison h2` reads `What the grader awarded`. Fail if `#modes` or `input[name="mode"]` exists.
+3. If `show_mock` is false, or `#run-button` is disabled, fail. Do not press Run in that case.
 4. Check each `#picker input[type="checkbox"][value="…"]` for the four skill names, and `#picker label.skill-check.wide input[type="checkbox"]`. Require `.picker-now` to name No skills, All four skills, and Without the priority matrix. Save `01-mock-selected.png`.
 5. Click `#run-button`. Wait until `#progress` is visible and the button reads `Running…`. Save `02-running.png`.
 6. Wait until `#banner strong` is `Mock model` and `#run-button` reads `Run`, or until `#alert h2` is `This run did not finish`. A failure alert fails the journey. Save `03-scores.png`.
@@ -49,7 +49,7 @@ Poll `GET /api/runs/{id}` until `status` is `succeeded` or `failed`. Do not trea
 
 ## Gotchas
 
-If `modes.mock.enabled` is false, the radio is disabled and `#mode-detail` shows the reason, usually `The gym command is not installed in this environment. Recorded sample still works.` Fail. Do not click Recorded sample and call that a Mock pass.
+If `modes.mock.enabled` is false, Run is disabled and `#mode-detail` shows the reason, usually `The gym command is not installed in this environment. Recorded sample still works.` Fail. Do not call `POST /api/runs` with `mode` `recorded` a mock pass.
 
 The first Mock start on a checkout without `.gym_venvs` installs server environments and can take several minutes. The script waits four minutes. A prepared tree is closer to one minute. Ports 11000 or 43117 already in use fail the run with an error on the page. Free them, or stop the other demo, and run the journey again. Do not raise the wait and ignore the error.
 

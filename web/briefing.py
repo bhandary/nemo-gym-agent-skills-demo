@@ -133,9 +133,18 @@ def _tickets() -> list[dict[str, Any]]:
     return tickets
 
 
+def _flag(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def show_mock() -> bool:
-    """The page hides Mock model unless this is set. The API still accepts mode=mock."""
-    return os.environ.get("DEMO_SHOW_MOCK", "").strip().lower() in {"1", "true", "yes", "on"}
+    """When set, the page's Run button starts mock instead of live. No mode control is shown."""
+    return _flag("DEMO_SHOW_MOCK")
+
+
+def show_recorded() -> bool:
+    """When set, the page shows the saved sample. Run still starts live unless show_mock is set."""
+    return _flag("DEMO_SHOW_RECORDED")
 
 
 def briefing(root: Path) -> dict[str, Any]:
@@ -175,6 +184,7 @@ def briefing(root: Path) -> dict[str, Any]:
         "skills": _skills(root),
         "tickets": _tickets(),
         "show_mock": show_mock(),
+        "show_recorded": show_recorded(),
         "modes": {
             "recorded": {
                 "enabled": (root / "sample_run" / "manifest.json").is_file(),

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Briefing page. Recorded sample works as soon as the process is up.
-# Live model starts NeMo Gym only after you press Run.
-# Mock model stays off the page unless DEMO_SHOW_MOCK=1. POST /api/runs still accepts mode=mock.
+# Run starts a live model. The page has no mode control.
+# POST /api/runs still accepts mode=recorded and mode=mock.
+# DEMO_SHOW_RECORDED=1 shows the saved sample. DEMO_SHOW_MOCK=1 makes Run start the local mock.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

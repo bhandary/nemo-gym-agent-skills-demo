@@ -18,16 +18,25 @@ def _client() -> TestClient:
     return TestClient(create_app(ROOT))
 
 
-def test_mock_stays_off_the_page_unless_asked(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_mock_and_recorded_stay_off_the_page_unless_asked(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("DEMO_SHOW_MOCK", raising=False)
+    monkeypatch.delenv("DEMO_SHOW_RECORDED", raising=False)
     hidden = _client().get("/api/briefing").json()
     assert hidden["show_mock"] is False
-    assert hidden["modes"]["mock"]["enabled"] in (True, False)
+    assert hidden["show_recorded"] is False
+    assert "recorded" in hidden["modes"] and "mock" in hidden["modes"] and "live" in hidden["modes"]
     monkeypatch.setenv("DEMO_SHOW_MOCK", "1")
+    monkeypatch.setenv("DEMO_SHOW_RECORDED", "1")
     shown = _client().get("/api/briefing").json()
     assert shown["show_mock"] is True
+    assert shown["show_recorded"] is True
     page = (ROOT / "web/static/app.js").read_text(encoding="utf-8")
+    html = (ROOT / "web/static/index.html").read_text(encoding="utf-8")
     assert "show_mock" in page
+    assert "show_recorded" in page
+    assert 'id="modes"' not in html
+    assert 'name = "mode"' not in page
+    assert "postedMode()" in page
     note = (ROOT / "web/static/columns.js").read_text(encoding="utf-8")
     assert "run Live to score it" in note
     assert "Mock or Live" not in note

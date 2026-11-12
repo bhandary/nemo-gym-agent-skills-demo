@@ -1,5 +1,6 @@
 /**
- * Drive the playbook checkbox journey. Does not start Mock or Live.
+ * Drive the playbook checkbox journey. Does not start a run.
+ * The page has no mode control. Run would start live, so this script never clicks it.
  */
 import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
@@ -17,8 +18,6 @@ const activePath = new URL("../../.verify-evidence/active", import.meta.url);
 const evidence = process.env.VERIFY_EVIDENCE || readFileSync(activePath, "utf8").trim();
 const launch = JSON.parse(readFileSync(`${evidence}/launch.json`, "utf8"));
 const base = process.env.VERIFY_BASE_URL || launch.base_url;
-const RECORDED_NOTE = "Not in the recorded sample - run Live to score it";
-
 function chromePath() {
   if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
   for (const name of ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"]) {
@@ -72,21 +71,17 @@ const shots = [];
 try {
   await page.goto(base, { waitUntil: "domcontentloaded" });
   await page.locator("#comparison h2", { hasText: "What the grader awarded" }).waitFor();
-  await page.locator("#banner strong", { hasText: "Recorded sample" }).waitFor();
-  const modeLabels = await page.locator("#modes label").evaluateAll((nodes) =>
-    nodes.map((node) => (node.textContent || "").replace(/\s+/g, " ").trim()),
-  );
-  if (modeLabels.join("|") !== "Recorded sample|Live model") {
-    throw new Error(`mode picker ${modeLabels.join("|")}`);
+  if (await page.locator("#modes, input[name='mode']").count()) {
+    throw new Error("A mode control is still on the page.");
   }
-  if (await page.locator('input[name="mode"][value="mock"]').count()) {
-    throw new Error("Mock model is still on the page. Launch without DEMO_SHOW_MOCK.");
+  if (await page.locator("#banner").isVisible()) {
+    throw new Error("The score banner is visible before a run. Launch without DEMO_SHOW_RECORDED.");
   }
   const runLabel = (await page.locator("#run-button").innerText()).trim();
   if (runLabel !== "Run") throw new Error(`run button ${runLabel}`);
-  const pickerShot = `${evidence}/00-mode-picker.png`;
-  await page.locator("#runbar").screenshot({ path: pickerShot });
-  shots.push(pickerShot);
+  const pageShot = `${evidence}/00-page.png`;
+  await page.screenshot({ path: pageShot });
+  shots.push(pageShot);
 
   const all = [
     "security-first-response",
@@ -105,14 +100,17 @@ try {
   shots.push(first);
 
   await setSkills(page, all.filter((name) => name !== "access-request-policy"));
-  await expectColumns(page, ["No skills"]);
-  const note = (await page.locator("#comparison .column-note").innerText()).trim();
-  if (note !== RECORDED_NOTE) throw new Error(`recorded note ${note}`);
+  await expectColumns(page, ["No skills", "Without Access request policy", "Without the priority matrix"]);
+  if (await page.locator("#comparison .column-note").count()) {
+    throw new Error("The live preview still shows a recorded-sample note.");
+  }
   const accessMeans = (await page.locator("#comparison .mean b").allInnerTexts()).map((text) => text.trim());
-  if (accessMeans.join(",") !== "0.40") throw new Error(`access means ${accessMeans.join(",")}`);
+  if (accessMeans.join(",") !== "0.40,—,—") throw new Error(`access means ${accessMeans.join(",")}`);
   await page.locator("#trace [role='tab']", { hasText: "Agent decision" }).click();
   const walkTitles = (await page.locator("#trace .compare-card h3").allInnerTexts()).map((text) => text.trim());
-  if (walkTitles.join("|") !== "No skills") throw new Error(`walk titles ${walkTitles.join("|")}`);
+  if (walkTitles.join("|") !== "No skills|Without Access request policy|Without the priority matrix") {
+    throw new Error(`walk titles ${walkTitles.join("|")}`);
+  }
   const second = `${evidence}/02-without-access.png`;
   await page.screenshot({ path: second, fullPage: true });
   shots.push(second);
@@ -136,28 +134,6 @@ try {
   const fourth = `${evidence}/04-matrix-off.png`;
   await page.screenshot({ path: fourth, fullPage: true });
   shots.push(fourth);
-
-  const live = page.locator('input[name="mode"][value="live"]');
-  if (await live.isEnabled()) {
-    await live.check();
-    await setSkills(page, all.filter((name) => name !== "access-request-policy"));
-    if (!(await matrix.isChecked())) await matrix.check();
-    await expectColumns(page, ["No skills", "Without Access request policy", "Without the priority matrix"]);
-    const preview = await page.locator("#comparison .mean").evaluateAll((cards) =>
-      cards.map((card) => ({
-        label: (card.querySelector("span")?.textContent || "").trim(),
-        value: (card.querySelector("b")?.textContent || "").trim(),
-      })),
-    );
-    const pending = preview.filter((card) => card.value === "—").map((card) => card.label);
-    if (pending.join("|") !== "Without Access request policy|Without the priority matrix") {
-      throw new Error(`live preview ${JSON.stringify(preview)}`);
-    }
-    const fifth = `${evidence}/05-live-preview.png`;
-    await page.screenshot({ path: fifth, fullPage: true });
-    shots.push(fifth);
-    await page.locator('input[name="mode"][value="recorded"]').check();
-  }
 
   const proof = { ok: true, feature: "skill-selection", base_url: base, shots };
   writeFileSync(`${evidence}/selection-proof.json`, JSON.stringify(proof, null, 2) + "\n");
