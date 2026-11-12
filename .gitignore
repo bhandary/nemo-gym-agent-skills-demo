@@ -7,6 +7,7 @@ results/
 .verify-evidence/
 .verify-cache/
 skills/selected/
+skills/selection_without_matrix/
 skills/without_security_first_response/
 skills/without_ticket_classification/
 skills/without_access_request_policy/

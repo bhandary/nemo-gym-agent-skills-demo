@@ -154,6 +154,9 @@ function renderModes() {
     input.addEventListener("change", () => {
       state.mode = id;
       renderControls();
+      updatePickerSummary();
+      renderResults();
+      renderTrace();
     });
     wrap.append(input, document.createTextNode(label));
     host.append(wrap);
@@ -217,37 +220,21 @@ function ensureSelection() {
   state.selectedSkills = choices.map((skill) => skill.name);
 }
 
-function sameSkills(left, right) {
-  if (left.length !== right.length) return false;
-  const wanted = new Set(right);
-  return left.every((name) => wanted.has(name));
+function scoreSource() {
+  if (state.mode === "recorded") return state.sample || state.view;
+  if (state.run && (state.run.mode === "mock" || state.run.mode === "live") && state.run.view) return state.run.view;
+  return state.sample || state.view;
 }
 
-function primaryConfig() {
+function currentColumns() {
   ensureSelection();
-  const configs = (state.briefing && state.briefing.configurations) || [];
-  const match = configs.find((item) => !item.baseline && sameSkills(item.skills, state.selectedSkills));
-  if (match) return match;
-  if (!state.selectedSkills.length) return { id: "no_skills", label: "No skills", skills: [] };
-  const titles = (state.briefing.skill_choices || [])
-    .filter((skill) => state.selectedSkills.includes(skill.name))
-    .map((skill) => skill.title);
-  return { id: "selected", label: titles.join(", ") || "Selected playbooks", skills: [...state.selectedSkills] };
-}
-
-function visibleVariantIds() {
-  const primary = primaryConfig();
-  const ids = ["no_skills"];
-  if (primary.id !== "no_skills") ids.push(primary.id);
-  if (
-    state.compareWithoutMatrix &&
-    state.selectedSkills.includes("priority-matrix") &&
-    primary.id !== "without_priority_matrix" &&
-    !ids.includes("without_priority_matrix")
-  ) {
-    ids.push("without_priority_matrix");
-  }
-  return ids;
+  return TicketNowColumns.columnView({
+    mode: state.mode,
+    selected: state.selectedSkills,
+    compareWithoutMatrix: state.compareWithoutMatrix && state.selectedSkills.includes("priority-matrix"),
+    view: scoreSource(),
+    run: state.mode === "recorded" ? null : state.run,
+  });
 }
 
 function renderProgress() {
@@ -350,7 +337,7 @@ function cellMeter(cell) {
 
 function renderResults() {
   const host = $("comparison");
-  const view = state.view;
+  const view = scoreSource();
   if (!view) {
     host.replaceChildren(el("p", "loading", "No scores loaded."));
     return;
@@ -365,45 +352,43 @@ function renderResults() {
   banner.append(el("strong", "", kicker));
   banner.append(el("p", "", view.source_label));
 
-  const visible = visibleVariantIds();
-  const present = new Set(view.variants.map((variant) => variant.id));
-  const missing = visible.filter((id) => !present.has(id) && id !== "no_skills");
+  const display = currentColumns();
+  const summaryById = new Map((view.comparison.summary || []).map((item) => [item.variant, item]));
   host.append(el("p", "eyebrow", "Same tickets, the configurations you chose"));
   host.append(el("h2", "", "What the grader awarded"));
-  if (missing.length) {
-    const wanted = primaryConfig();
-    host.append(
-      el(
-        "p",
-        "reward-note",
-        `The scores on screen do not include “${wanted.label}”. Recorded sample has no skills, all four skills, and without the priority matrix. Run Mock or Live to score the mix you checked.`,
-      ),
-    );
-  }
+  if (display.note) host.append(el("p", "column-note", display.note));
   const means = el("div", "means");
-  const summary = view.comparison.summary.filter((item) => visible.includes(item.variant) && present.has(item.variant));
-  for (const item of summary) {
-    const card = el("div", `mean ${item.variant === "full_skills" ? "full" : ""}`);
+  means.style.setProperty("--cols", String(Math.max(display.columns.length, 1)));
+  for (const column of display.columns) {
+    const item = summaryById.get(column.id);
+    const card = el("div", `mean ${column.id === "full_skills" ? "full" : ""}`);
     const label = el("span");
-    const swatch = el("i", `swatch ${variantClass(item.variant)}`);
-    label.append(swatch, document.createTextNode(item.label));
+    const swatch = el("i", `swatch ${variantClass(column.id)}`);
+    label.append(swatch, document.createTextNode(column.label));
     card.append(label);
-    card.append(el("b", "", meanText(item.mean_reward)));
-    card.append(el("span", "", `${item.correct} of ${item.total} decisions correct`));
+    if (!item || column.pending) {
+      card.append(el("b", "", "—"));
+      card.append(el("span", "", "Not scored yet"));
+    } else {
+      card.append(el("b", "", meanText(item.mean_reward)));
+      card.append(el("span", "", `${item.correct} of ${item.total} decisions correct`));
+    }
     means.append(card);
   }
   host.append(means);
 
-  const shown = view.variants.filter((variant) => visible.includes(variant.id));
   const sheet = el("div", "sheet");
-  sheet.style.setProperty("--cols", String(Math.max(shown.length, 1)));
+  sheet.style.setProperty("--cols", String(Math.max(display.columns.length, 1)));
   sheet.setAttribute("role", "table");
   const head = el("div", "sheet-row sheet-head");
   head.setAttribute("role", "row");
-  const headers = ["Ticket", ...shown.map((variant) => variant.label)];
-  for (const text of headers) {
-    const cell = el("div", "", text);
+  const ticketHead = el("div", "", "Ticket");
+  ticketHead.setAttribute("role", "columnheader");
+  head.append(ticketHead);
+  for (const column of display.columns) {
+    const cell = el("div", "", column.label);
     cell.setAttribute("role", "columnheader");
+    cell.dataset.column = column.id;
     head.append(cell);
   }
   sheet.append(head);
@@ -415,7 +400,17 @@ function renderResults() {
     name.append(el("strong", "", `${ticket.ticket_id}`));
     name.append(el("span", "", ticket.title));
     row.append(name);
-    for (const cell of ticket.cells.filter((item) => visible.includes(item.variant))) row.append(cellMeter(cell));
+    const cells = new Map(ticket.cells.map((cell) => [cell.variant, cell]));
+    for (const column of display.columns) {
+      const cell = cells.get(column.id);
+      if (!cell || column.pending) {
+        const pending = el("div", "score-cell");
+        pending.append(el("p", "", "Not scored yet"));
+        row.append(pending);
+      } else {
+        row.append(cellMeter(cell));
+      }
+    }
     sheet.append(row);
   }
   host.append(sheet);
@@ -462,16 +457,12 @@ function currentTicket() {
   return (state.briefing.tickets || []).find((ticket) => ticket.case_id === state.caseId) || state.briefing.tickets[0];
 }
 
-function pairForTicket() {
+function traceForColumn(column) {
   const ticket = currentTicket();
-  const byCase = (state.view && state.view.traces[ticket.case_id]) || {};
-  const primary = primaryConfig();
-  return {
-    ticket,
-    without: byCase.no_skills || null,
-    withTrace: byCase[primary.id] || null,
-    withLabel: primary.label,
-  };
+  const source = scoreSource();
+  const byCase = (source && source.traces && source.traces[ticket.case_id]) || {};
+  if (column.pending) return null;
+  return byCase[column.id] || null;
 }
 
 function scoreOf(trace) {
@@ -494,7 +485,7 @@ function compareCard(title, trace, mode) {
   const card = el("article", "compare-card");
   card.append(el("h3", "", title));
   if (!trace) {
-    card.append(el("p", "", "This side was not scored in the run on screen. Run Mock or Live to score it."));
+    card.append(el("p", "", "Not scored yet"));
     return card;
   }
   const score = scoreOf(trace);
@@ -540,6 +531,7 @@ function renderPicker() {
         const box = list.querySelector(`input[value="${name}"]`);
         return box && box.checked;
       });
+      syncMatrixToggle();
       state.walkStep = 0;
       updatePickerSummary();
       renderResults();
@@ -561,24 +553,29 @@ function renderPicker() {
   });
   ablation.append(matrix, el("span", "", "Also show these tickets with the priority matrix removed"));
   host.append(ablation);
+  const why = el("p", "picker-why", "The priority matrix is not selected, so there is no matrix column to remove.");
+  why.id = "matrix-why";
+  host.append(why);
   host.append(el("p", "picker-now", ""));
+  syncMatrixToggle();
   updatePickerSummary();
+}
+
+function syncMatrixToggle() {
+  const matrix = document.querySelector("#picker label.skill-check.wide input[type='checkbox']");
+  const why = $("matrix-why");
+  if (!matrix) return;
+  const available = (state.selectedSkills || []).includes("priority-matrix");
+  matrix.disabled = !available;
+  matrix.checked = available && state.compareWithoutMatrix;
+  matrix.setAttribute("aria-describedby", "matrix-why");
+  if (why) why.hidden = available;
 }
 
 function updatePickerSummary() {
   const node = document.querySelector(".picker-now");
   if (!node) return;
-  const primary = primaryConfig();
-  const parts = ["No skills"];
-  if (primary.id !== "no_skills") parts.push(primary.label);
-  if (
-    state.compareWithoutMatrix &&
-    state.selectedSkills.includes("priority-matrix") &&
-    primary.id !== "without_priority_matrix"
-  ) {
-    parts.push("Without the priority matrix");
-  }
-  node.textContent = `The comparison shows ${parts.join(", ")}.`;
+  node.textContent = currentColumns().caption;
 }
 
 function renderTrace() {
@@ -588,8 +585,7 @@ function renderTrace() {
     host.replaceChildren(el("p", "loading", "The walk loads with the scores."));
     return;
   }
-  const pair = pairForTicket();
-  const ticket = pair.ticket;
+  const ticket = currentTicket();
   host.replaceChildren();
   const intro = el("div", "walk-intro");
   intro.append(el("p", "eyebrow", "One ticket, one rule"));
@@ -625,6 +621,7 @@ function renderTrace() {
   }
   host.append(cards);
   markTickets();
+  const display = currentColumns();
 
   if (state.walkStep < 0 || state.walkStep >= WALK_STEPS.length) state.walkStep = 0;
   const stepper = el("div", "stepper");
@@ -657,25 +654,30 @@ function renderTrace() {
     card.append(el("p", "rule-line", `The company rule for this ticket: ${ticket.outcome}`));
   } else if (state.walkStep === 1) {
     const titles = new Map((state.briefing.skill_choices || []).map((skill) => [skill.name, skill.title]));
-    const loaded = pair.withTrace && pair.withTrace.skills_loaded.length ? pair.withTrace.skills_loaded : pair.withLabel === "No skills" ? [] : primaryConfig().skills;
-    if (!loaded.length) {
+    const scored = display.columns.filter((column) => column.id !== "no_skills");
+    if (!scored.length) {
       card.append(el("p", "lead-copy", "No playbooks were loaded. The lead had the note and the tools only."));
-    } else {
-      const list = el("ul", "playbook-list");
-      for (const name of loaded) list.append(el("li", "", titles.get(name) || name));
-      card.append(list);
     }
-    card.append(el("p", "", "The lead in the other column was not allowed to open any playbook."));
-    if (!pair.withTrace && primaryConfig().id !== "no_skills") {
-      card.append(el("p", "reward-note", "That mix is not in the scores on screen. Run Mock or Live to score it."));
+    for (const column of scored) {
+      card.append(el("h3", "", column.label));
+      const trace = traceForColumn(column);
+      const loaded = trace && trace.skills_loaded && trace.skills_loaded.length ? trace.skills_loaded : column.skills;
+      if (!loaded.length) {
+        card.append(el("p", "", "Not scored yet"));
+      } else {
+        const list = el("ul", "playbook-list");
+        for (const name of loaded) list.append(el("li", "", titles.get(name) || name));
+        card.append(list);
+      }
     }
+    card.append(el("p", "", "The No skills column was not allowed to open any playbook."));
   } else if (state.walkStep === 2) {
     const columns = el("div", "compare");
-    columns.append(compareCard("Without skills", pair.without, "decision"));
-    columns.append(compareCard(pair.withLabel, pair.withTrace, "decision"));
+    for (const column of display.columns) columns.append(compareCard(column.label, traceForColumn(column), "decision"));
     card.append(columns);
   } else if (state.walkStep === 3) {
-    const score = scoreOf(pair.withTrace) || scoreOf(pair.without);
+    const scoredColumn = display.columns.map(traceForColumn).find((trace) => scoreOf(trace));
+    const score = scoreOf(scoredColumn);
     if (!score || !score.checks) {
       card.append(el("p", "", "The checks appear after a scored run is on screen."));
     } else {
@@ -688,8 +690,7 @@ function renderTrace() {
     card.append(el("p", "rule-line", ticket.outcome));
   } else {
     const columns = el("div", "compare");
-    columns.append(compareCard("Without skills", pair.without, "score"));
-    columns.append(compareCard(pair.withLabel, pair.withTrace, "score"));
+    for (const column of display.columns) columns.append(compareCard(column.label, traceForColumn(column), "score"));
     card.append(columns);
   }
 
@@ -719,7 +720,8 @@ function renderTrace() {
   technical.addEventListener("toggle", () => {
     state.showTechnical = technical.open;
   });
-  const focus = pair.withTrace || pair.without;
+  if (display.note) card.append(el("p", "column-note", display.note));
+  const focus = display.columns.map(traceForColumn).find(Boolean);
   if (!focus) {
     technical.append(el("p", "", "No tool trace is available for this ticket."));
   } else {
@@ -864,6 +866,7 @@ async function init() {
       readJson(await fetch("/api/sample")),
     ]);
     state.briefing = briefing;
+    state.sample = sample;
     state.view = sample;
     renderModes();
     renderControls();

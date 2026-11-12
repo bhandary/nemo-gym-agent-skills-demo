@@ -355,7 +355,7 @@ legend {
 
 .means {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr));
   gap: 0.7rem;
   margin: 0.8rem 0 1rem;
 }
@@ -517,7 +517,9 @@ legend {
 }
 .skill-check.wide { margin-top: 0.35rem; }
 .skill-check input { width: 1.15rem; height: 1.15rem; accent-color: var(--forest); }
-.picker-now { color: var(--muted); }
+.skill-check:has(input:disabled) { opacity: 0.55; }
+.picker-now, .picker-why, .column-note { color: var(--ink); }
+.picker-why, .column-note { margin: 0.4rem 0 0; max-width: 42rem; }
 
 .ticket-cards {
   display: grid;
@@ -617,7 +619,7 @@ legend {
 .rule-line { font-size: 1.08rem; }
 .playbook-list, .check-list { margin: 0.6rem 0; padding-left: 1.2rem; font-size: 1.15rem; }
 .playbook-list li, .check-list li { margin: 0.35rem 0; }
-.compare { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; margin-top: 0.6rem; }
+.compare { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0.8rem; margin-top: 0.6rem; }
 .compare-card {
   background: #fcf8f2;
   border: 1px solid var(--line);

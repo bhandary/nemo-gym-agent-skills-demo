@@ -53,3 +53,5 @@ The first Mock start on a checkout without `.gym_venvs` installs server environm
 Mock replaces only the model HTTP endpoint. NeMo Gym, Ray, the desk server, and the verifier still run. `[gym]` lines are the evidence that they did.
 
 Unchecking a playbook scores a different mix. The 0.40 / 1.00 / 0.50 end state is for all four playbooks plus the matrix column. A different checkbox set has a different end state and is not a pass for this file.
+
+After this run succeeds, changing a checkbox must leave those three scored columns in place and show `Selection changed - run again to score it`. The caption stays `The comparison shows No skills, All four skills, Without the priority matrix.` until you run again. That check is part of [skill-selection.md](skill-selection.md); this journey stops when the fresh run's columns match the boxes that were checked at Run demo.

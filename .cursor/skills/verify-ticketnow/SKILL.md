@@ -80,11 +80,12 @@ Then, with the server from Launch still up:
 
 ```bash
 node scripts/verify/drive-mock.mjs
+node scripts/verify/drive-selection.mjs
 ```
 
-The script loads Playwright from `.verify-cache/node_modules`. Node does not resolve that package through `NODE_PATH` because the driver is an ES module.
+The scripts load Playwright from `.verify-cache/node_modules`. Node does not resolve that package through `NODE_PATH` because the drivers are ES modules.
 
-Set `CHROME_PATH` if Chrome is not on `PATH` as `google-chrome`. The script drives the Mock feature in `features/mock-run.md`. It fails, and does not switch to Recorded sample, when the Mock radio is disabled. The reason is `modes.mock.reason` from `/api/briefing` (the gym command is missing, or the page could not load).
+Set `CHROME_PATH` if Chrome is not on `PATH` as `google-chrome`. `drive-mock.mjs` drives the Mock feature in `features/mock-run.md`. It fails, and does not switch to Recorded sample, when the Mock radio is disabled. The reason is `modes.mock.reason` from `/api/briefing` (the gym command is missing, or the page could not load). `drive-selection.mjs` drives the checkbox columns in `features/skill-selection.md` and does not start a run.
 
 Other journeys stay in the feature files. Use the same base URL. Real selectors and curl calls:
 
@@ -106,7 +107,7 @@ Page controls, from `web/static/index.html` and `web/static/app.js`:
 | Run | `#run-button` |
 | Why this mode | `#mode-detail` |
 | Playbook checkbox | `#picker input[type="checkbox"][value="security-first-response"]` and the same for `ticket-classification`, `access-request-policy`, `priority-matrix` |
-| Matrix column | `#picker label.skill-check.wide input[type="checkbox"]` |
+| Matrix column | `#picker label.skill-check.wide input[type="checkbox"]`, explanation `#matrix-why` |
 | What will be scored | `.picker-now` |
 | Progress | `#progress`, `#progress-list`, `#progress-log` |
 | Failure or 409 notice | `#alert` |

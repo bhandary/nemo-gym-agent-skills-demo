@@ -22,9 +22,9 @@ SKILLS = (
 SHARED_SKILLS = tuple(name for name, _title in SKILLS if name != "priority-matrix")
 
 _OMIT_LABEL = {
-    "security-first-response": "Without security first response",
-    "ticket-classification": "Without classification",
-    "access-request-policy": "Without the access policy",
+    "security-first-response": "Without Security first response",
+    "ticket-classification": "Without Classify and route",
+    "access-request-policy": "Without Access request policy",
     "priority-matrix": "Without the priority matrix",
 }
 
@@ -65,9 +65,10 @@ def selection_config(skill_names: list[str] | tuple[str, ...]) -> dict[str, Any]
             "skills": ordered,
             "path": f"skills/{config_id}",
         }
+    titles = [title for name, title in SKILLS if name in set(ordered)]
     return {
         "id": "selected",
-        "label": "Selected playbooks",
+        "label": ", ".join(titles),
         "skills": ordered,
         "path": "skills/selected",
     }
@@ -90,7 +91,16 @@ def run_plan(
         and "priority-matrix" in primary["skills"]
         and primary["id"] != "without_priority_matrix"
     ):
-        plan.append(selection_config([name for name in primary["skills"] if name != "priority-matrix"]))
+        ablation = selection_config([name for name in primary["skills"] if name != "priority-matrix"])
+        # This column is the current selection with the matrix removed, not the
+        # recorded three-skill ablation, unless those happen to be the same skills.
+        ablation["label"] = "Without the priority matrix"
+        if ablation["id"] == "no_skills":
+            return plan
+        if any(item["id"] == ablation["id"] for item in plan):
+            ablation["id"] = "selection_without_matrix"
+            ablation["path"] = "skills/selection_without_matrix"
+        plan.append(ablation)
     return plan
 
 

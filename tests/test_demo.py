@@ -309,7 +309,29 @@ def test_a_run_can_score_every_leave_one_out(tmp_path: Path) -> None:
     assert (tmp_path / "skills" / "full" / "priority-matrix" / "SKILL.md").read_bytes() == stamped
     without_access = selection_config([name for name in names if name != "access-request-policy"])
     assert without_access["id"] == "without_access_request_policy"
-    assert without_access["label"] == "Without the access policy"
+    assert without_access["label"] == "Without Access request policy"
+    access_plan = run_plan([name for name in names if name != "access-request-policy"], compare_without_matrix=True)
+    assert [(item["id"], item["label"]) for item in access_plan] == [
+        ("no_skills", "No skills"),
+        ("without_access_request_policy", "Without Access request policy"),
+        ("selected", "Without the priority matrix"),
+    ]
+    assert access_plan[2]["skills"] == [
+        "security-first-response",
+        "ticket-classification",
+    ]
+    assert [item["id"] for item in run_plan([], compare_without_matrix=True)] == ["no_skills"]
+    no_matrix = run_plan([name for name in names if name != "priority-matrix"], compare_without_matrix=True)
+    assert [(item["id"], item["label"]) for item in no_matrix] == [
+        ("no_skills", "No skills"),
+        ("without_priority_matrix", "Without the priority matrix"),
+    ]
+    custom = run_plan(["security-first-response", "priority-matrix"], compare_without_matrix=True)
+    assert [item["id"] for item in custom] == ["no_skills", "selected", "selection_without_matrix"]
+    assert custom[1]["path"] == "skills/selected"
+    assert custom[2]["path"] == "skills/selection_without_matrix"
+    assert custom[1]["label"] == "Security first response, Priority matrix"
+    assert custom[2]["label"] == "Without the priority matrix"
     dest = materialize(tmp_path, without_access)
     assert dest is not None
     assert not (dest / "access-request-policy").exists()

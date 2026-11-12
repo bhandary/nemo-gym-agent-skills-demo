@@ -57,6 +57,10 @@ class RunState:
             "view": self.view,
             "started_at": self.started_at,
             "finished_at": self.finished_at,
+            "variants": [
+                {"id": item["id"], "label": item["label"], "skills": list(item.get("skills") or [])}
+                for item in self.variants
+            ],
         }
 
 

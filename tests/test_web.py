@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,10 @@ from web.server import ROOT, create_app
 
 def _client() -> TestClient:
     return TestClient(create_app(ROOT))
+
+
+def test_checkbox_column_plan() -> None:
+    subprocess.run(["node", str(ROOT / "tests" / "test_columns.mjs")], check=True)
 
 
 def test_health() -> None:

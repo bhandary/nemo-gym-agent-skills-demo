@@ -5,14 +5,14 @@
 - Twelve ticket cards, each with a type badge (Incident, Request, or Inquiry), a title, a category, and a ticket id.
 - A five-step stepper: Employee request, Skills loaded, Agent decision, Reward check, Score.
 - Next, Back, and the left and right arrow keys move one step.
-- Agent decision and Score show Without skills beside the selected playbooks, with the words Pass and Miss on each check.
+- Agent decision and Score show one card per column on the score table. The card title is that column's name. Pass and Miss are written on each check.
 - Show technical details is closed until it is opened. It holds the tool list, and after a Gym run, the NeMo Gym log.
 
 ## How to get to it (user POV)
 
-The walk sits under the score table, headed Walk the ticket. The Friday offboard card is selected when the page loads (`offboard-friday`, TKT-2408). Click that card if another ticket is selected. Step 1 shows the employee note and the company rule. Click Next through Skills loaded, Agent decision, and Reward check. On Score, the left column is Without skills and the right column is All four skills when every playbook is checked. The big scores are 0.4 and 1.0. Pass and Miss are written on the checks, not only drawn in color.
+The walk sits under the score table, headed Walk the ticket. The Friday offboard card is selected when the page loads (`offboard-friday`, TKT-2408). Click that card if another ticket is selected. Step 1 shows the employee note and the company rule. Click Next through Skills loaded, Agent decision, and Reward check. On Score, the cards use the same names as the table columns. With every playbook checked, those names are No skills, All four skills, and Without the priority matrix. The big scores include 0.4 and 1.0. Pass and Miss are written on the checks, not only drawn in color.
 
-End state on the recorded sample, all four playbooks checked, ticket `offboard-friday`, step Score: `#trace .walk-kicker` reads `Step 5 of 5`, the two `.compare-card h3` titles are `Without skills` and `All four skills`, `.big-score` reads `0.4` and `1.0`, and at least one `.mark.pass` and one `.mark.fail` are visible with the text Pass and Miss. `#trace details.technical` is not open.
+End state on the recorded sample, all four playbooks checked and the matrix comparison checked, ticket `offboard-friday`, step Score: `#trace .walk-kicker` reads `Step 5 of 5`, the `.compare-card h3` titles are `No skills`, `All four skills`, and `Without the priority matrix`, `.big-score` includes `0.4` and `1.0`, and at least one `.mark.pass` and one `.mark.fail` are visible with the text Pass and Miss. `#trace details.technical` is not open.
 
 ## Driving it with Playwright and curl
 
