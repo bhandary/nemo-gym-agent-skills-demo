@@ -224,6 +224,8 @@ Set variables in the Railway service settings, not in the browser. Leave them em
 | `DEMO_TEMPERATURE` | Optional. Defaults to `0`. |
 | `PORT` | Railway sets this. The process binds to it. |
 
+A build of this Dockerfile is about 1.8 GB. The per-server virtualenvs are created on the first Mock model or Live model run, not in the image.
+
 A local image of the same container:
 
 ```bash
