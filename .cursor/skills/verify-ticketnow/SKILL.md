@@ -128,7 +128,7 @@ Page controls, from `web/static/index.html` and `web/static/app.js`:
 
 `scripts/verify/launch.sh` creates `.verify-evidence/<UTC timestamp>/`. Keep that directory. A proof of the Mock journey contains:
 
-- `01-mock-selected.png` before Run demo, with Mock selected and the four playbooks checked
+- `01-mock-selected.png` before Run, with Mock selected and the four playbooks checked
 - `02-running.png` while `#run-button` reads `Running…`
 - `03-scores.png` after the banner reads `Mock model`
 - `run.json` from `GET /api/runs/{id}`, whose `log_tail` includes `mean/reward`

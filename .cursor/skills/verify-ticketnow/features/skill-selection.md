@@ -19,7 +19,7 @@ Uncheck the remaining playbooks. The caption reads `The comparison shows No skil
 
 Check every playbook except Priority matrix. The columns are No skills and Without the priority matrix, means 0.40 and 0.50. The matrix box stays disabled.
 
-The mode picker shows Recorded sample and Live model. Mock model is not there. Do not press Run demo. When Live model can be selected, the same unchecked Access request policy mix previews three headers, and the two mixes the sample does not contain say Not scored yet. When Live is disabled, leave it disabled and do not invent a key to reach that preview. The column plan for that preview is covered by `tests/test_columns.mjs`.
+The mode picker shows Recorded sample and Live model. Mock model is not there. Do not press Run. When Live model can be selected, the same unchecked Access request policy mix previews three headers, and the two mixes the sample does not contain say Not scored yet. When Live is disabled, leave it disabled and do not invent a key to reach that preview. The column plan for that preview is covered by `tests/test_columns.mjs`.
 
 End state: `.picker-now` equals `The comparison shows ` plus the column headers joined by commas. The Agent decision step of Walk the ticket uses those same card titles.
 
@@ -44,4 +44,4 @@ Recorded sample has no column for Without Access request policy. Showing the rec
 
 The matrix comparison box stays checked in memory when the priority matrix playbook is turned off, and it comes back when that playbook is checked again. While the playbook is off the box is disabled and it does not add a column. If `#matrix-why` is missing, the journey fails.
 
-A Live preview, when the Live radio can be selected, still shows recorded numbers for a column whose id is in `sample_run` (No skills, All four skills, Without the priority matrix). A different mix must say Not scored yet. Do not press Run demo to hide a wrong recorded number. Do not turn Live on by inventing a key.
+A Live preview, when the Live radio can be selected, still shows recorded numbers for a column whose id is in `sample_run` (No skills, All four skills, Without the priority matrix). A different mix must say Not scored yet. Do not press Run to hide a wrong recorded number. Do not turn Live on by inventing a key.

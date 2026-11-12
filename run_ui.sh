@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Briefing page. Recorded sample works as soon as the process is up.
-# Live model starts NeMo Gym only after you press Run demo.
+# Live model starts NeMo Gym only after you press Run.
 # Mock model stays off the page unless DEMO_SHOW_MOCK=1. POST /api/runs still accepts mode=mock.
 set -euo pipefail
 

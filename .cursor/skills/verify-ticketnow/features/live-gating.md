@@ -5,7 +5,7 @@
 - Live model is a radio in the same group as Recorded sample. Mock model is not in that group unless the server was started with `DEMO_SHOW_MOCK=1`.
 - It stays disabled until the server process already has a real `POLICY_API_KEY`, `POLICY_BASE_URL`, and `POLICY_MODEL_NAME` (`POLICY_MODEL` is an alias). `POLICY_MODEL_TYPE` must be `vllm_model` or `openai_model`.
 - When it is on, `#mode-detail` names the model, the host, and the adapter. The page has no key field.
-- Starting it is a real model call. This journey does not press Run demo.
+- Starting it is a real model call. This journey does not press Run.
 
 ## How to get to it (user POV)
 
@@ -29,6 +29,6 @@ Do not `POST /api/runs` with `{"mode":"live"}` from this skill. Do not send that
 
 Placeholder keys (`mock`, `changeme`, `your-key`, `your-api-key`, `sk-your-key-here`, `replace-me`, `paste-your-key`) leave Live off, with reason `POLICY_API_KEY is still a placeholder. Live mode stays off.` An empty key says it stays off until `POLICY_API_KEY` is set. A missing base URL or model name has its own reason. The journey fails if the reason does not match the environment you actually started.
 
-`python -m web` loads `.env` without overriding variables the process already has. A key in the shell or in `.env` turns Live on even though `launch.sh` did not export one. Doctor prints `modes.live`. If Live is on and you did not mean to call a model, do not press Run demo.
+`python -m web` loads `.env` without overriding variables the process already has. A key in the shell or in `.env` turns Live on even though `launch.sh` did not export one. Doctor prints `modes.live`. If Live is on and you did not mean to call a model, do not press Run.
 
 The Railway deployment is the wrong place to test this. A Live run may already be in progress there, and this skill must not start another.

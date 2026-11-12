@@ -82,6 +82,8 @@ try {
   if (await page.locator('input[name="mode"][value="mock"]').count()) {
     throw new Error("Mock model is still on the page. Launch without DEMO_SHOW_MOCK.");
   }
+  const runLabel = (await page.locator("#run-button").innerText()).trim();
+  if (runLabel !== "Run") throw new Error(`run button ${runLabel}`);
   const pickerShot = `${evidence}/00-mode-picker.png`;
   await page.locator("#runbar").screenshot({ path: pickerShot });
   shots.push(pickerShot);

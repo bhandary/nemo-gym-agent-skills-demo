@@ -9,7 +9,7 @@
 
 ## How to get to it (user POV)
 
-Open the briefing page. Leave the selected mode on Recorded sample. The banner reads Recorded sample and names mock-it-lead. The comparison is already on the page. No Run demo click is required for this journey. Changing a playbook checkbox only filters this saved run.
+Open the briefing page. Leave the selected mode on Recorded sample. The banner reads Recorded sample and names mock-it-lead. The comparison is already on the page. No Run click is required for this journey. Changing a playbook checkbox only filters this saved run.
 
 End state: `#banner strong` is `Recorded sample`, `#comparison .mean b` reads `0.40`, `1.00`, `0.50`, and `GET /api/sample` returns the same means for `no_skills`, `full_skills`, and `without_priority_matrix`.
 

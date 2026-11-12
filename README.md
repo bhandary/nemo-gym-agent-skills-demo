@@ -166,7 +166,7 @@ The page has four parts:
 
 1. The four skills, which you can open, including the priority matrix.
 2. Checkboxes for the playbooks to score. They stay on screen in Recorded sample and Live model. A run with no playbooks is always scored beside the ones you leave checked. "Also show these tickets with the priority matrix removed" stays on unless you turn it off. Recorded sample only contains no skills, all four skills, and without the priority matrix. Any other mix asks you to run Live.
-3. **Run demo**, which scores that selection. While a Gym run is in progress the page shows the step and the latest Gym log. If a run is already going, the page attaches to it and says so instead of failing the click.
+3. **Run**, which scores that selection. While a Gym run is in progress the page shows the step and the latest Gym log. If a run is already going, the page attaches to it and says so instead of failing the click.
 4. **Walk the ticket.** Pick a ticket from the cards. Each card has the title, an Incident, Request, or Inquiry badge, and a category icon. Then move through five steps with Next, Back, or the arrow keys: Employee request, Skills loaded, Agent decision, Reward check, and Score. The decision and the score put "without skills" beside the playbooks you checked, with a Pass or Miss on each part of the filing. Tool output stays behind "Show technical details".
 
 Screenshots of that page are in [docs/screenshots/](docs/screenshots/). The walk is `walk-request.png`, `walk-decision.png`, and `walk-score.png`. The playbook checkboxes are `skill-picker.png`.

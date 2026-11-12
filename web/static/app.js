@@ -169,7 +169,7 @@ function renderControls() {
   const info = state.briefing.modes[state.mode];
   const running = state.run && state.run.status === "running";
   $("run-button").disabled = running || !info.enabled;
-  $("run-button").textContent = running ? "Running…" : "Run demo";
+  $("run-button").textContent = running ? "Running…" : "Run";
   const detail = $("mode-detail");
   detail.textContent = info.enabled ? info.detail : info.reason;
 }

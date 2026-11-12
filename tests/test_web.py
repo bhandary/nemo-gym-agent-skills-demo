@@ -49,7 +49,8 @@ def test_health() -> None:
 def test_page_offers_run_demo() -> None:
     response = _client().get("/")
     assert response.status_code == 200
-    assert "Run demo" in response.text
+    assert 'id="run-button">Run</button>' in response.text
+    assert "Run demo" not in response.text
     assert "TicketNow" in response.text
     assert "IT service desk" in response.text
     assert "Presenter notes" not in response.text
@@ -66,6 +67,8 @@ def test_page_offers_run_demo() -> None:
     assert "NeMo Gym log" in page_js
     assert "A run is already in progress. Showing it." in page_js
     assert "compare_without_matrix" in page_js
+    assert '"Run demo"' not in page_js
+    assert 'running ? "Running…" : "Run"' in page_js
 
 
 def test_briefing_lists_skills_and_tickets() -> None:

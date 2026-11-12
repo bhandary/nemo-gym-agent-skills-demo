@@ -121,7 +121,7 @@ try {
     if (heading === "This run did not finish") return "failed";
     const banner = document.querySelector("#banner strong")?.textContent || "";
     const button = document.querySelector("#run-button")?.textContent || "";
-    if (banner === "Mock model" && button === "Run demo") return "ok";
+    if (banner === "Mock model" && button === "Run") return "ok";
     return "";
   }, null, { timeout: 240000 });
   const verdict = await outcome.jsonValue();
