@@ -1,0 +1,15 @@
+.git
+.venv
+.gym_venvs
+cache
+.env
+env.yaml
+results
+outputs
+agent-tools
+__pycache__
+.pytest_cache
+.ruff_cache
+*.pyc
+*.egg-info
+*.md.bak

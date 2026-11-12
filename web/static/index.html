@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Northwind support desk · NeMo Gym briefing</title>
+  <meta name="description" content="Five Northwind support tickets scored three ways, with and without Agent Skills, by NeMo Gym.">
+  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect fill='%231e4a38' width='32' height='32' rx='6'/%3E%3Cpath d='M6 22h20M8 22V14l8-6 8 6v8' fill='none' stroke='%23f3eee4' stroke-width='1.7'/%3E%3C/svg%3E">
+</head>
+<body>
+  <a class="skip" href="#comparison">Skip to the scores</a>
+  <header class="mast">
+    <div class="mast-id">
+      <p class="eyebrow">NeMo Gym 0.7.0 · Agent Skills</p>
+      <h1>Northwind Outfitters</h1>
+      <p class="deck">Support desk briefing</p>
+    </div>
+    <form class="runbar" id="runbar">
+      <fieldset>
+        <legend>How to score the tickets</legend>
+        <div class="modes" id="modes"></div>
+      </fieldset>
+      <div class="run-actions">
+        <button type="submit" class="run" id="run-button">Run demo</button>
+        <p class="mode-detail" id="mode-detail"></p>
+      </div>
+    </form>
+  </header>
+
+  <main class="layout">
+    <aside class="brief" id="brief">
+      <p class="loading" id="brief-loading">Loading the briefing…</p>
+    </aside>
+
+    <div class="stage">
+      <section class="banner" id="banner" hidden></section>
+      <section class="progress" id="progress" hidden aria-live="polite">
+        <h2>This run</h2>
+        <ol id="progress-list"></ol>
+      </section>
+      <section class="alert" id="alert" hidden role="alert"></section>
+      <section class="results" id="comparison">
+        <p class="loading">Loading the recorded sample…</p>
+      </section>
+      <section class="trace" id="trace">
+        <p class="loading">The episode trace loads with the scores.</p>
+      </section>
+    </div>
+  </main>
+
+  <dialog id="skill-dialog">
+    <article>
+      <header>
+        <p class="eyebrow" id="skill-kicker">Skill</p>
+        <h2 id="skill-title"></h2>
+        <p id="skill-description"></p>
+        <div class="doc-switch" id="doc-switch"></div>
+        <button type="button" class="close" id="skill-close">Close</button>
+      </header>
+      <div id="skill-body"></div>
+    </article>
+  </dialog>
+
+  <noscript>
+    <p class="noscript">The briefing page needs JavaScript to load the scores.</p>
+  </noscript>
+  <script src="/static/app.js"></script>
+</body>
+</html>

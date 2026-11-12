@@ -6,4 +6,4 @@ It is **mock output**. The policy model was `mock-desk-associate` on `http://127
 
 Open [comparison.md](comparison.md) for the table and [trace.md](trace.md) for the dented-kettle episode. The JSONL files are the rollouts Gym wrote. `logs/` is the `gym eval run` output for each variant.
 
-A later run with your own API key writes `results/` and does not replace this folder.
+A later run with your own API key writes `results/` and does not replace this folder. The briefing page replays this folder when the mode is Recorded sample.

@@ -1,0 +1,1 @@
+"""Northwind briefing page."""

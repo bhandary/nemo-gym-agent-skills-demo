@@ -1,5 +1,6 @@
 .venv/
 .gym_venvs/
+cache/
 env.yaml
 .env
 results/

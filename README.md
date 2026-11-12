@@ -2,7 +2,15 @@
 
 A support lead can watch this in five minutes. The same five customer tickets are scored three times: with no operational skills, with the full skill set, and with the refund skill removed. NeMo Gym records a reward for every ticket. The comparison is the point.
 
-The first time you run it, NeMo Gym builds a virtualenv for each server. That can take several minutes. After that, the three evaluations themselves are short. If you are about to walk into the room and the servers are still installing, open [sample_run/comparison.md](sample_run/comparison.md). That folder is a recorded mock run, labeled as such.
+Open the briefing page if you are presenting without a terminal. It loads the recorded sample immediately, and it can also start the real NeMo Gym run.
+
+```bash
+./run_ui.sh
+```
+
+Then open http://127.0.0.1:43123. `make ui` is the same command. The page listens on `$PORT` when that variable is set, which is what Railway does.
+
+The first time you run the terminal demo, NeMo Gym builds a virtualenv for each server. That can take several minutes. After that, the three evaluations themselves are short. If you are about to walk into the room and the servers are still installing, stay on Recorded sample in the briefing page, or open [sample_run/comparison.md](sample_run/comparison.md). That folder is a recorded mock run, labeled as such.
 
 ## What NeMo Gym is
 
@@ -71,6 +79,7 @@ A busy agent that looks things up and then guesses the money still loses most of
 
 ```mermaid
 flowchart LR
+  page["Briefing page"]
   eval["gym eval run"]
   head["Head server :11000"]
   env["Environment server\nlegacy_agent relay"]
@@ -78,7 +87,10 @@ flowchart LR
   model["Model server\nvllm_model or openai_model"]
   upstream["OpenAI-compatible endpoint\nor the local mock"]
   desk["Northwind resources server\ntools and verify"]
+  sample["sample_run"]
 
+  page -->|"Recorded sample"| sample
+  page -->|"Mock or Live"| eval
   eval -->|"POST /run with skills_ref"| head
   head --> env
   env -->|"raw /run body"| agent
@@ -87,6 +99,7 @@ flowchart LR
   agent -->|"lookup_order, lookup_ticket, file_resolution"| desk
   desk -->|"reward"| agent
   agent --> eval
+  eval --> page
 ```
 
 `vllm_model` is the adapter for chat-completions endpoints, including `https://integrate.api.nvidia.com/v1`. It translates Gym's Responses API to `POST {base_url}/chat/completions`. `openai_model` posts to `{base_url}/responses` and is the one to use for OpenAI's Responses API. Pointing `openai_model` at a chat-only host returns 404.
@@ -102,7 +115,7 @@ cp .env.example .env
 ./run_demo.sh
 ```
 
-`make demo` is the same command. `make test` runs the unit tests only.
+`make demo` is the same command. `make ui` starts the briefing page. `make test` runs the unit tests only.
 
 The script writes `env.yaml` from the environment. That file holds the API key, is gitignored, and is regenerated on every run.
 
@@ -127,7 +140,100 @@ The script writes `env.yaml` from the environment. That file holds the API key, 
 4. Run `./run_demo.sh` (or `make demo`).
 5. Read `results/comparison.md`, then `results/trace.md`.
 
+## Briefing page
+
+`./run_ui.sh` serves one page from the same repository. Nothing in the browser asks for an API key.
+
+The page has four parts:
+
+1. The three skills, which you can open, including the refund rate card.
+2. The five tickets, with the handoff the associate sees and the outcome the policy requires.
+3. **Run demo**, which scores the tickets three times and draws the comparison. While a Gym run is in progress the page shows which step it is on.
+4. An episode trace. Pick a ticket and step through it: skill opened, rate card read, order and ticket looked up, resolution filed, reward.
+
+Screenshots of that page are in [docs/screenshots/](docs/screenshots/).
+
+The mode selector has three settings:
+
+| Mode | What it does |
+| --- | --- |
+| Recorded sample | Replays [sample_run/](sample_run/) immediately. Always available. Labeled as mock output. |
+| Mock model | Starts NeMo Gym and the local `mock-desk-associate` model, then scores the five tickets three times. Labeled as not a live model. |
+| Live model | Enabled only when the server process already has `POLICY_API_KEY`, `POLICY_BASE_URL`, and `POLICY_MODEL_NAME` (or `POLICY_MODEL`). The page shows the model name and the host. It does not show the key, and it has nowhere to type one. |
+
+Recorded sample is what you want on screen when you walk into the room. Mock model is the same pipeline as `./run_demo.sh` without a key. Live model is that pipeline pointed at your endpoint. The CLI still works, and it does not overwrite `sample_run/`.
+
+Run one Gym collection at a time. The briefing page and `./run_demo.sh` both use port 11000.
+
 ## Five-minute talk track
+
+Use the briefing page. The terminal walkthrough above is the same story if you want to show the files.
+
+**0:00.** The table is already on screen. "This is NeMo Gym scoring a support agent. Same tickets, same tools, same grader. The only thing we change is which playbooks the agent is allowed to open. These numbers are the recorded sample, from the mock associate, so we are not waiting on a network."
+
+**0:40.** Open the three skills. "The refund numbers are not in the handoff. They are in the rate card. The model sees the name of the playbook first, and the rate card only if it opens it."
+
+**1:30.** Select ticket T-444. "The handoff says the blender shocked them. The safety flag is a field on the ticket. The tent is the same kind of surprise: the price is on the order, not in the note."
+
+**2:20.** Leave the mode on Recorded sample and hit Run demo if you only need to reload the table. Switch to Mock model if you want the room to watch NeMo Gym score the tickets. Say out loud that the mock is not NVIDIA or OpenAI. Switch to Live model only when the server was started with a key.
+
+**3:20.** Read the three averages. "Without the playbooks the associate still looks up the order and the ticket, so each ticket keeps 0.4, and every decision is wrong. With the skills, every ticket matches. Reward is 1. Take only the refund skill away and the two escalation tickets still pass. The three ordinary refunds fail."
+
+**4:20.** Open the dented-kettle trace on Full skills and press Next. "The associate opens the escalation playbook, opens the refund skill, reads the rate card, looks up the order, and files a $56 partial refund. The verifier agrees. The skills hash is Gym's record of which files were on the run."
+
+**4:50.** "To change the policy, we edit the skill and the verifier together. The tickets stay the same, so the comparison stays fair."
+
+## Deploy to Railway
+
+The container is one service. It binds `0.0.0.0:$PORT` (Railway sets `PORT`; the image default is 8080), serves the briefing page, and answers `GET /health`. `railway.json` sets the start command to `python -m web` and the health check path to `/health`. With no environment variables, Recorded sample works immediately. Mock model works too: the first run installs NeMo Gym's server virtualenvs, which needs outbound network and a few minutes. Later runs reuse them. Live model turns on only when the variables below are set on the service.
+
+Those server virtualenvs are not baked into the image. Prebuilding them copied Ray and the model server's dev extra and made the image too large for a typical Railway deploy. Recorded sample does not start Ray or install anything.
+
+Give the service at least 2 GB of memory before you use Mock model or Live model. Ray starts with those modes. If Ray cannot stay up, the page says so and Recorded sample still loads.
+
+### Railway CLI, from this repository
+
+```bash
+railway up
+```
+
+That builds the Dockerfile and deploys it. The CLI signs you in if it needs to, and it creates a project when you do not already have one linked. When the deploy is healthy, attach a public URL:
+
+```bash
+railway domain
+```
+
+Open that URL. `GET /health` should return `{"status":"ok"}`.
+
+### GitHub
+
+1. Push this repository to GitHub.
+2. In [Railway](https://railway.com), create a project and choose **Deploy from GitHub repo**. Select the repository and the branch.
+3. Railway reads `railway.json`, builds the Dockerfile, and starts `python -m web`. The health check path is `/health`.
+4. Generate a domain on the service. Open it.
+
+Set variables in the Railway service settings, not in the browser. Leave them empty to present from the recorded sample.
+
+| Variable | What to put |
+| --- | --- |
+| `POLICY_API_KEY` | Secret for the endpoint. Empty, or a placeholder such as `changeme`, keeps Live model off. |
+| `POLICY_BASE_URL` | For the NVIDIA API catalog: `https://integrate.api.nvidia.com/v1`. |
+| `POLICY_MODEL_NAME` | Model id, for example `meta/llama-3.1-8b-instruct`. `POLICY_MODEL` is accepted as an alias. |
+| `POLICY_MODEL_TYPE` | `vllm_model` for chat-completions hosts, including NVIDIA's catalog. `openai_model` for OpenAI's Responses API. The first run of either type installs that adapter's virtualenv and needs network access in the container. |
+| `POLICY_REASONING_PARSER` | Leave unset. Set `true` only for a reasoning model behind `vllm_model`. |
+| `DEMO_TEMPERATURE` | Optional. Defaults to `0`. |
+| `PORT` | Railway sets this. The process binds to it. |
+
+A local image of the same container:
+
+```bash
+docker build -t northwind-desk .
+docker run --rm --memory=3g --shm-size=256m -p 43123:8080 northwind-desk
+```
+
+Open http://127.0.0.1:43123. The process inside the container is on port 8080. To point that container at a live model, pass the variables with `-e` and do not bake them into the image.
+
+## Five-minute talk track (terminal)
 
 **0:00.** "This is NeMo Gym scoring a support agent. Same tickets, same tools, same grader. The only thing we change is which playbooks the agent is allowed to open."
 
@@ -159,7 +265,7 @@ A live run with your key writes `results/` and does not overwrite `sample_run/`.
 
 ## Tests
 
-`make test` covers the policy, the skill files, path checks on `read_skill_file`, the mock's with-and-without-skills behavior, the comparison table, and the mock HTTP server. Those tests do not start NeMo Gym. `./run_demo.sh` runs them and then the real Gym collection.
+`make test` covers the policy, the skill files, path checks on `read_skill_file`, the mock's with-and-without-skills behavior, the comparison table, the mock HTTP server, and the briefing page's recorded-sample API. Those tests do not start NeMo Gym. `./run_demo.sh` runs them and then the real Gym collection.
 
 ## Limitations of this demo, and of NeMo Gym 0.7.0
 
@@ -173,3 +279,7 @@ A live run with your key writes `results/` and does not overwrite `sample_run/`.
 - The mock is deterministic and only correct because it parses the skill files. A real model can ignore a skill, misread the rate card, or fail a tool call. That is the measurement you want from a live key, and it will not match the mock table.
 - Temperature defaults to 0. Some endpoints reject that. Set `DEMO_TEMPERATURE` in `.env` if yours does.
 - Rewards grade the filed decision, not the prose of the customer message.
+- The briefing page and `./run_demo.sh` both collect through port 11000. Run one of them at a time.
+- Mock model and Live model start Ray inside the same machine as the page. The container limits Ray's object store so a modest service can boot. If Ray still cannot start, the page says so. Recorded sample does not start Ray, and it stays available.
+- The image ships the `gym` command and the recorded sample. It does not ship the per-server virtualenvs. The first Mock model or Live model run in a fresh container installs them and needs network access. `vllm_model` and `openai_model` each install their own adapter virtualenv.
+- Live model reads `POLICY_API_KEY` from the server environment. The page has no field for a key.
