@@ -2,7 +2,7 @@
 
 ## Sub-features
 
-- Live model is a radio in the same group as Recorded sample and Mock model.
+- Live model is a radio in the same group as Recorded sample. Mock model is not in that group unless the server was started with `DEMO_SHOW_MOCK=1`.
 - It stays disabled until the server process already has a real `POLICY_API_KEY`, `POLICY_BASE_URL`, and `POLICY_MODEL_NAME` (`POLICY_MODEL` is an alias). `POLICY_MODEL_TYPE` must be `vllm_model` or `openai_model`.
 - When it is on, `#mode-detail` names the model, the host, and the adapter. The page has no key field.
 - Starting it is a real model call. This journey does not press Run demo.

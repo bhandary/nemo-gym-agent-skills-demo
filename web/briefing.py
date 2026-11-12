@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -132,6 +133,11 @@ def _tickets() -> list[dict[str, Any]]:
     return tickets
 
 
+def show_mock() -> bool:
+    """The page hides Mock model unless this is set. The API still accepts mode=mock."""
+    return os.environ.get("DEMO_SHOW_MOCK", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def briefing(root: Path) -> dict[str, Any]:
     settings = model_settings()
     gym_ok, gym_reason = gym_available(root)
@@ -168,6 +174,7 @@ def briefing(root: Path) -> dict[str, Any]:
         "skill_choices": [{"name": name, "title": title} for name, title in SKILLS],
         "skills": _skills(root),
         "tickets": _tickets(),
+        "show_mock": show_mock(),
         "modes": {
             "recorded": {
                 "enabled": (root / "sample_run" / "manifest.json").is_file(),

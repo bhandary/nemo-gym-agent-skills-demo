@@ -10,7 +10,7 @@ Open the briefing page if you are presenting without a terminal. It loads the re
 
 Then open http://127.0.0.1:43123. `make ui` is the same command. The page listens on `$PORT` when that variable is set, which is what Railway does.
 
-The container image already contains the server virtualenvs, so Mock model and Live model on Railway do not spend the first start installing them. A checkout on a laptop still builds those virtualenvs the first time `./run_demo.sh` runs, and that can take several minutes. If you are about to walk into the room, stay on Recorded sample, or open [sample_run/comparison.md](sample_run/comparison.md). That folder is a recorded mock run, labeled as such.
+The container image already contains the server virtualenvs, so Live model on Railway does not spend the first start installing them. A checkout on a laptop still builds those virtualenvs the first time `./run_demo.sh` runs, and that can take several minutes. If you are about to walk into the room, stay on Recorded sample, or open [sample_run/comparison.md](sample_run/comparison.md). That folder is a recorded mock run, labeled as such. The page does not offer Mock model. `./run_demo.sh` still uses the local mock when no API key is set.
 
 The Railway service name is unchanged. This repository changes the desk the service presents.
 
@@ -108,7 +108,7 @@ flowchart LR
   sample["sample_run"]
 
   page -->|"Recorded sample"| sample
-  page -->|"Mock or Live"| eval
+  page -->|"Live model"| eval
   eval -->|"POST /run with skills_ref"| head
   head --> env
   env -->|"raw /run body"| agent
@@ -165,21 +165,20 @@ The script writes `env.yaml` from the environment. That file holds the API key, 
 The page has four parts:
 
 1. The four skills, which you can open, including the priority matrix.
-2. Checkboxes for the playbooks to score. They stay on screen in Recorded, Mock, and Live. A run with no playbooks is always scored beside the ones you leave checked. "Also show these tickets with the priority matrix removed" stays on unless you turn it off. Recorded sample only contains no skills, all four skills, and without the priority matrix. Any other mix asks you to run Mock or Live.
+2. Checkboxes for the playbooks to score. They stay on screen in Recorded sample and Live model. A run with no playbooks is always scored beside the ones you leave checked. "Also show these tickets with the priority matrix removed" stays on unless you turn it off. Recorded sample only contains no skills, all four skills, and without the priority matrix. Any other mix asks you to run Live.
 3. **Run demo**, which scores that selection. While a Gym run is in progress the page shows the step and the latest Gym log. If a run is already going, the page attaches to it and says so instead of failing the click.
 4. **Walk the ticket.** Pick a ticket from the cards. Each card has the title, an Incident, Request, or Inquiry badge, and a category icon. Then move through five steps with Next, Back, or the arrow keys: Employee request, Skills loaded, Agent decision, Reward check, and Score. The decision and the score put "without skills" beside the playbooks you checked, with a Pass or Miss on each part of the filing. Tool output stays behind "Show technical details".
 
 Screenshots of that page are in [docs/screenshots/](docs/screenshots/). The walk is `walk-request.png`, `walk-decision.png`, and `walk-score.png`. The playbook checkboxes are `skill-picker.png`.
 
-The mode selector has three settings:
+The mode selector has two settings:
 
 | Mode | What it does |
 | --- | --- |
 | Recorded sample | Replays [sample_run/](sample_run/) immediately. Always available. Labeled as mock output. |
-| Mock model | Starts NeMo Gym and the local `mock-it-lead` model, then scores the twelve tickets three times. Labeled as not a live model. |
 | Live model | Enabled only when the server process already has `POLICY_API_KEY`, `POLICY_BASE_URL`, and `POLICY_MODEL_NAME` (or `POLICY_MODEL`). The page shows the model name, the host, and the adapter (`openai_model` or `vllm_model`). It does not show the key, and it has nowhere to type one. |
 
-Recorded sample is what you want on screen when you walk into the room. Mock model is the same pipeline as `./run_demo.sh` without a key. Live model is that pipeline pointed at your endpoint. With `POLICY_MODEL_TYPE=openai_model`, `POLICY_BASE_URL=https://api.openai.com/v1`, and `POLICY_MODEL_NAME=gpt-4.1-mini`, Live model is available and the page names that model. The CLI still works, and it does not overwrite `sample_run/`.
+Recorded sample is what you want on screen when you walk into the room. Live model is the NeMo Gym pipeline pointed at your endpoint. With `POLICY_MODEL_TYPE=openai_model`, `POLICY_BASE_URL=https://api.openai.com/v1`, and `POLICY_MODEL_NAME=gpt-4.1-mini`, Live model is available and the page names that model. The CLI still works, and it does not overwrite `sample_run/`. `./run_demo.sh` with no key still scores against the local mock. The page hides that choice. Set `DEMO_SHOW_MOCK=1` on the server to show Mock model again. `POST /api/runs` with `{"mode":"mock"}` works with or without that flag.
 
 Run one Gym collection at a time. The briefing page and `./run_demo.sh` both use port 11000.
 
@@ -193,7 +192,7 @@ The page itself does not carry speaker notes. Use this if you are narrating.
 
 **Tickets.** Select the phishing ticket, then the Friday offboard. "The note says they clicked a link. The security signal is a field on the ticket. The offboard note says Friday. The same-day actions are in the access playbook, and P2 is in the matrix. The three-day inquiry is the same shape: the note says three days, the threshold is 72 hours on the ticket's clock."
 
-**Run.** Leave the mode on Recorded sample, or switch to Mock model if you want the room to watch NeMo Gym score the tickets. Say out loud that the mock is not OpenAI. Switch to Live model only when the server was started with a key. On the deployed desk that key points at `gpt-4.1-mini`.
+**Run.** Leave the mode on Recorded sample. Switch to Live model only when the server was started with a key. On the deployed desk that key points at `gpt-4.1-mini`. Say out loud that the numbers already on screen came from the mock lead, not from that live call.
 
 **Scores.** "Without the playbooks the lead still looks up the requester and the ticket, so each ticket keeps 0.4, and every decision is wrong. With the skills, every ticket matches. Reward is 1. Take only the priority matrix away and the two security incidents still pass. The other ten fail. Mean reward is 0.50."
 
@@ -203,11 +202,11 @@ The page itself does not carry speaker notes. Use this if you are narrating.
 
 ## Deploy to Railway
 
-The container is one service. It binds `0.0.0.0:$PORT` (Railway sets `PORT`; the image default is 8080), serves the briefing page, and answers `GET /health`. `railway.json` sets the start command to `python -m web` and the health check path to `/health`. The Railway service name is left as it is. With no environment variables, Recorded sample works immediately. Mock model and Live model start NeMo Gym against virtualenvs that the image build already installed, for both `vllm_model` and `openai_model`. Live model turns on only when the variables below are set on the service.
+The container is one service. It binds `0.0.0.0:$PORT` (Railway sets `PORT`; the image default is 8080), serves the briefing page, and answers `GET /health`. `railway.json` sets the start command to `python -m web` and the health check path to `/health`. The Railway service name is left as it is. With no environment variables, Recorded sample works immediately and Mock model is not on the page. Live model starts NeMo Gym against virtualenvs that the image build already installed, for both `vllm_model` and `openai_model`. Live model turns on only when the variables below are set on the service.
 
 Recorded sample does not start Ray. Gym and Ray write to the container stdout, prefixed `[gym]`, and the full text is kept in the run log. The page and `GET /api/runs/{id}` show the last 200 lines under Show technical details. Ray starts with the dashboard off, two CPUs at most, a 200 MB object store, and the store files on `/tmp` rather than `/dev/shm`, so a 64 MB `/dev/shm` is enough. If Gym stops printing before it is ready, or it is not ready within three minutes when the virtualenvs are present, the page shows the error and that log instead of spinning. A second click while a run is going attaches to that run.
 
-Give the service at least 2 GB of memory before you use Mock model or Live model. Ray starts with those modes. If Ray cannot stay up, the page says so and Recorded sample still loads.
+Give the service at least 2 GB of memory before you use Live model. Ray starts with that mode. If Ray cannot stay up, the page says so and Recorded sample still loads.
 
 ### Railway CLI, from this repository
 
@@ -295,6 +294,6 @@ A live run with your key writes `results/` and does not overwrite `sample_run/`.
 - Temperature defaults to 0. Some endpoints reject that. `gpt-4.1-mini` accepts 0. Set `DEMO_TEMPERATURE` in `.env` if yours does not.
 - Rewards grade the filed triage, not the prose of the employee message. The grader accepts a different capitalization and a different action order. It does not accept a different code.
 - The briefing page and `./run_demo.sh` both collect through port 11000. Run one of them at a time.
-- Mock model and Live model start Ray inside the same machine as the page. The object store is 200 MB on `/tmp`, the dashboard is off, and Ray is limited to two CPUs. The container stdout carries the Gym log. Recorded sample does not start Ray, and it stays available.
+- Live model starts Ray inside the same machine as the page. The object store is 200 MB on `/tmp`, the dashboard is off, and Ray is limited to two CPUs. The container stdout carries the Gym log. Recorded sample does not start Ray, and it stays available. `./run_demo.sh` and `POST /api/runs` with `mode` `mock` start Ray the same way. The page shows Mock model only when `DEMO_SHOW_MOCK=1`.
 - The image ships the `gym` command, the recorded sample, and the per-server virtualenvs for `vllm_model` and `openai_model`. A fresh container does not need network access to install them.
 - Live model reads `POLICY_API_KEY` from the server environment. The page has no field for a key.

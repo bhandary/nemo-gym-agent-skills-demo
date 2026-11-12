@@ -3,9 +3,10 @@ name: verify-ticketnow
 description: >-
   Verify the TicketNow IT service desk briefing page (the web UI served by
   python -m web). Use when a change to the page, the run API, skill selection,
-  Walk the ticket, or a Mock model run needs an end-to-end check before it is
-  called done. Do not use it to start Live model, and do not POST a run to the
-  Railway deployment.
+  Walk the ticket, or a local mock scoring run needs an end-to-end check before
+  it is called done. Do not use it to start Live model, and do not POST a run
+  to the Railway deployment. The page shows Recorded sample and Live model.
+  Mock model is hidden unless the server was started with DEMO_SHOW_MOCK=1.
 ---
 
 # Verify TicketNow
@@ -18,7 +19,7 @@ Drive the page with Playwright. Confirm side effects with curl. Evidence goes in
 
 The page port is `$PORT` (default 43123, bind `$HOST` or `0.0.0.0`). Two page processes can listen on two ports and both serve Recorded sample, because that mode only reads `sample_run/`.
 
-Mock model and Live model cannot run side by side in one checkout. Both use NeMo Gym on port **11000** and, for Mock, the local model on port **43117**. They also rewrite `env.yaml`, `resources_servers/ticketnow_desk/data/tasks.jsonl`, and the generated skill folders. One page process accepts one run at a time. A second `POST /api/runs` while one is `running` returns **409** with `detail.message` and `detail.run`. Run files for a page-started Gym run land in `results/ui/<12-char id>/`. `./run_demo.sh` writes `results/` at the top level and uses the same Gym port, so do not start it while a Mock run from the page is going.
+Live model, and Mock model when `DEMO_SHOW_MOCK=1` or when `POST /api/runs` uses `mode` `mock`, cannot run side by side in one checkout. Both use NeMo Gym on port **11000** and, for mock, the local model on port **43117**. They also rewrite `env.yaml`, `resources_servers/ticketnow_desk/data/tasks.jsonl`, and the generated skill folders. One page process accepts one run at a time. A second `POST /api/runs` while one is `running` returns **409** with `detail.message` and `detail.run`. Run files for a page-started Gym run land in `results/ui/<12-char id>/`. `./run_demo.sh` writes `results/` at the top level and uses the same Gym port, so do not start it while a Gym run from the page is going.
 
 Do not point this skill at the Railway site. A Live run there is a real model call, and this skill must not start one.
 
@@ -32,7 +33,11 @@ scripts/verify/launch.sh
 
 Optional: `VERIFY_PORT=43130 scripts/verify/launch.sh` pins the port. Otherwise the script takes the first free port from 43124 through 43140 so it does not attach to a presenter already on 43123.
 
-On a clean checkout the script creates `.venv` with uv and installs `nemo-gym==0.7.0`, pytest, and pyyaml, the same imports `./run_ui.sh` needs. It then runs `python -m web` with `HOST=127.0.0.1` and the chosen `PORT`. It does not put a key into the environment. The process still loads a repo `.env` if one exists.
+On a clean checkout the script creates `.venv` with uv and installs `nemo-gym==0.7.0`, pytest, and pyyaml, the same imports `./run_ui.sh` needs. It then runs `python -m web` with `HOST=127.0.0.1` and the chosen `PORT`. It does not put a key into the environment. The process still loads a repo `.env` if one exists. Leave `DEMO_SHOW_MOCK` unset for the page a presenter sees. The Mock journey needs:
+
+```bash
+DEMO_SHOW_MOCK=1 scripts/verify/launch.sh
+```
 
 Usable means both of these succeed, not merely that the PID is alive:
 
@@ -85,7 +90,7 @@ node scripts/verify/drive-selection.mjs
 
 The scripts load Playwright from `.verify-cache/node_modules`. Node does not resolve that package through `NODE_PATH` because the drivers are ES modules.
 
-Set `CHROME_PATH` if Chrome is not on `PATH` as `google-chrome`. `drive-mock.mjs` drives the Mock feature in `features/mock-run.md`. It fails, and does not switch to Recorded sample, when the Mock radio is disabled. The reason is `modes.mock.reason` from `/api/briefing` (the gym command is missing, or the page could not load). `drive-selection.mjs` drives the checkbox columns in `features/skill-selection.md` and does not start a run.
+Set `CHROME_PATH` if Chrome is not on `PATH` as `google-chrome`. `drive-mock.mjs` drives the mock feature in `features/mock-run.md` and requires the server from `DEMO_SHOW_MOCK=1 scripts/verify/launch.sh`. It fails when the Mock radio is missing or disabled. `drive-selection.mjs` drives the checkbox columns in `features/skill-selection.md` against the default page, which shows Recorded sample and Live model, and does not start a run.
 
 Other journeys stay in the feature files. Use the same base URL. Real selectors and curl calls:
 
@@ -103,7 +108,7 @@ Page controls, from `web/static/index.html` and `web/static/app.js`:
 
 | Action | Selector |
 | --- | --- |
-| Mode | `input[name="mode"][value="recorded"]`, `mock`, or `live` |
+| Mode | `input[name="mode"][value="recorded"]` or `live`. `mock` is present only when the server was started with `DEMO_SHOW_MOCK=1` |
 | Run | `#run-button` |
 | Why this mode | `#mode-detail` |
 | Playbook checkbox | `#picker input[type="checkbox"][value="security-first-response"]` and the same for `ticket-classification`, `access-request-policy`, `priority-matrix` |
@@ -154,7 +159,8 @@ Do not `kill` by process name, and do not stop a page that was already listening
 | --- | --- |
 | `scripts/verify/launch.sh` | Start the page and wait until `/health` and `/api/briefing` are usable |
 | `scripts/verify/doctor.sh` | Read-only identity, port ownership, and mode flags |
-| `scripts/verify/drive-mock.mjs` | Playwright drive of the Mock skill-checkbox journey |
+| `scripts/verify/drive-mock.mjs` | Playwright drive of the mock skill-checkbox journey. Needs `DEMO_SHOW_MOCK=1` |
+| `scripts/verify/drive-selection.mjs` | Playwright drive of the mode picker and checkbox columns. Needs the flag unset |
 | `scripts/verify/cleanup.sh` | Stop that PID and drop scratch files |
 
 Feature map: `.cursor/skills/verify-ticketnow/features/README.md`.

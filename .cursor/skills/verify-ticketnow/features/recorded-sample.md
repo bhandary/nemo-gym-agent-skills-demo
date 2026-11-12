@@ -5,7 +5,7 @@
 - The page opens on Recorded sample and shows the twelve TicketNow tickets.
 - The score table has three columns: No skills, All four skills, Without the priority matrix.
 - Means are 0.40, 1.00, and 0.50. Correct decisions are 0 of 12, 12 of 12, and 2 of 12.
-- Unchecking a playbook that is not one of those three mixes drops that mix from the table. The page says `Not in the recorded sample - run Mock or Live to score it`. It does not keep a recorded column whose skill set is different from the checkboxes.
+- Unchecking a playbook that is not one of those three mixes drops that mix from the table. The page says `Not in the recorded sample - run Live to score it`. It does not keep a recorded column whose skill set is different from the checkboxes.
 
 ## How to get to it (user POV)
 
@@ -24,7 +24,7 @@ The `comparison.summary` rows must be mean reward 0.4, 1.0, and 0.5 with correct
 
 In Playwright, open `BASE` and wait for `#comparison h2` with text `What the grader awarded` and `#banner strong` with text `Recorded sample`. Read `#comparison .mean b`. With every playbook checkbox still checked, `.picker-now` includes `No skills`, `All four skills`, and `Without the priority matrix`.
 
-To see the missing-mix message, uncheck `#picker input[type="checkbox"][value="access-request-policy"]`. The only column header left beside Ticket is `No skills`, `.picker-now` reads `The comparison shows No skills.`, and `#comparison .column-note` reads `Not in the recorded sample - run Mock or Live to score it`. The recorded Without the priority matrix column is not a stand-in for that mix. Check the box again before treating the 0.40 / 1.00 / 0.50 table as the result.
+To see the missing-mix message, uncheck `#picker input[type="checkbox"][value="access-request-policy"]`. The only column header left beside Ticket is `No skills`, `.picker-now` reads `The comparison shows No skills.`, and `#comparison .column-note` reads `Not in the recorded sample - run Live to score it`. The recorded Without the priority matrix column is not a stand-in for that mix. Check the box again before treating the 0.40 / 1.00 / 0.50 table as the result.
 
 ## Gotchas
 

@@ -11,7 +11,7 @@
     { name: "priority-matrix", title: "Priority matrix" },
   ];
 
-  const RECORDED_NOTE = "Not in the recorded sample - run Mock or Live to score it";
+  const RECORDED_NOTE = "Not in the recorded sample - run Live to score it";
   const CHANGED_NOTE = "Selection changed - run again to score it";
 
   function selectionConfig(selected) {

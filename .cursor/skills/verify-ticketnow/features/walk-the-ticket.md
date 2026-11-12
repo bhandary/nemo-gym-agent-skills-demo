@@ -33,7 +33,7 @@ Click the offboard card. Its `aria-pressed` becomes `true`. Click `#trace .pager
 
 ## Gotchas
 
-A playbook mix that is not in the view on screen has no right-hand trace. The card says `This side was not scored in the run on screen. Run Mock or Live to score it.` That is a failed walk for this file when the claim was the recorded offboard comparison. Restore all four checkboxes. The recorded sample has no other mixes.
+A playbook mix that is not in the view on screen has no trace, and the card says `Not scored yet`. On Recorded sample the score table instead drops that mix and says `Not in the recorded sample - run Live to score it`. That is a failed walk for this file when the claim was the recorded offboard comparison. Restore all four checkboxes. The recorded sample has no other mixes.
 
 Clicking a ticket card resets the walk to step 1. Arrow keys do not move the walk while a skill dialog is open (`#skill-dialog`) or while a checkbox has focus.
 

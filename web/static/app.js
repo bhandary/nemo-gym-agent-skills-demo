@@ -138,9 +138,11 @@ function renderModes() {
   host.replaceChildren();
   const modes = [
     ["recorded", "Recorded sample"],
-    ["mock", "Mock model"],
     ["live", "Live model"],
   ];
+  if (state.briefing.show_mock && state.briefing.modes.mock) {
+    modes.splice(1, 0, ["mock", "Mock model"]);
+  }
   for (const [id, label] of modes) {
     const info = state.briefing.modes[id];
     const wrap = document.createElement("label");
@@ -513,7 +515,7 @@ function renderPicker() {
     el(
       "p",
       "picker-caption",
-      "These checkboxes are the same in Recorded, Mock, and Live. Leave them all on to score every playbook. Uncheck one to score the tickets without that playbook. A lead with no playbooks is always scored beside them.",
+      `These checkboxes are the same in ${state.briefing.show_mock ? "Recorded sample, Mock model, and Live model" : "Recorded sample and Live model"}. Leave them all on to score every playbook. Uncheck one to score the tickets without that playbook. A lead with no playbooks is always scored beside them.`,
     ),
   );
   const list = el("div", "skill-checks");

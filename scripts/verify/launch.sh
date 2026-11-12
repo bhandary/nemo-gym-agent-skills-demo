@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Start one local TicketNow briefing server and wait until it can be used.
 # Writes .verify-evidence/<timestamp>/ and points .verify-evidence/active at it.
+# The page shows Recorded sample and Live model. Export DEMO_SHOW_MOCK=1
+# before this script when the Mock model radio is part of the proof.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

@@ -10,7 +10,7 @@
 
 ## How to get to it (user POV)
 
-On the briefing page, choose Mock model. Leave all four playbooks checked and leave the priority-matrix checkbox checked. The line under the checkboxes reads `The comparison shows No skills, All four skills, Without the priority matrix.` Press Run demo. The button changes to Running…. When the run finishes the banner reads Mock model and the three means match the numbers above.
+Start the page with `DEMO_SHOW_MOCK=1`. The mode picker then includes Mock model. Choose it. Leave all four playbooks checked and leave the priority-matrix checkbox checked. The line under the checkboxes reads `The comparison shows No skills, All four skills, Without the priority matrix.` Press Run demo. The button changes to Running…. When the run finishes the banner reads Mock model and the three means match the numbers above.
 
 End state: `GET /api/runs/{id}` has `status` `succeeded` and `mode` `mock`, `log_tail` contains a `mean/reward` line, and `results/ui/<id>/` contains `no_skills_aggregate_metrics.json`, `full_skills_aggregate_metrics.json`, and `without_priority_matrix_aggregate_metrics.json`. The server stdout (`server.log`, and the container stdout on Railway) contains `[gym]` and `Started a local Ray instance.` The `[gym]` prefix is added when the line is copied to stdout. It is not stored in `log_tail`.
 
@@ -20,8 +20,11 @@ This is the scripted proof:
 
 ```bash
 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install --prefix .verify-cache playwright
+DEMO_SHOW_MOCK=1 scripts/verify/launch.sh
 node scripts/verify/drive-mock.mjs
 ```
+
+Without `DEMO_SHOW_MOCK=1` the Mock radio is absent and the script fails. `POST /api/runs` with `"mode":"mock"` still scores that selection when the radio is hidden. The click journey needs the radio.
 
 The script does the following, and fails closed if any step does not happen:
 

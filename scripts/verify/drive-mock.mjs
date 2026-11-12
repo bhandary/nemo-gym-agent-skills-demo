@@ -89,6 +89,9 @@ try {
   await page.locator("#banner strong", { hasText: "Recorded sample" }).waitFor();
 
   const mock = page.locator('input[name="mode"][value="mock"]');
+  if ((await mock.count()) === 0) {
+    throw new Error("Mock model is not on the page. Relaunch with DEMO_SHOW_MOCK=1 scripts/verify/launch.sh.");
+  }
   if (await mock.isDisabled()) {
     throw new Error("The Mock model radio is disabled. The briefing reason is in briefing.json.");
   }

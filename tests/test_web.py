@@ -18,6 +18,21 @@ def _client() -> TestClient:
     return TestClient(create_app(ROOT))
 
 
+def test_mock_stays_off_the_page_unless_asked(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("DEMO_SHOW_MOCK", raising=False)
+    hidden = _client().get("/api/briefing").json()
+    assert hidden["show_mock"] is False
+    assert hidden["modes"]["mock"]["enabled"] in (True, False)
+    monkeypatch.setenv("DEMO_SHOW_MOCK", "1")
+    shown = _client().get("/api/briefing").json()
+    assert shown["show_mock"] is True
+    page = (ROOT / "web/static/app.js").read_text(encoding="utf-8")
+    assert "show_mock" in page
+    note = (ROOT / "web/static/columns.js").read_text(encoding="utf-8")
+    assert "run Live to score it" in note
+    assert "Mock or Live" not in note
+
+
 def test_checkbox_column_plan() -> None:
     subprocess.run(["node", str(ROOT / "tests" / "test_columns.mjs")], check=True)
 
