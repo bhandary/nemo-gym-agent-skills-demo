@@ -43,6 +43,7 @@ def test_page_offers_run_demo() -> None:
     assert "Agent decision" in page_js
     assert "Reward check" in page_js
     assert "Show technical details" in page_js
+    assert "NeMo Gym log" in page_js
     assert "A run is already in progress. Showing it." in page_js
     assert "compare_without_matrix" in page_js
 

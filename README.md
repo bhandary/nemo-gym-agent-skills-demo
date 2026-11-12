@@ -205,7 +205,7 @@ The page itself does not carry speaker notes. Use this if you are narrating.
 
 The container is one service. It binds `0.0.0.0:$PORT` (Railway sets `PORT`; the image default is 8080), serves the briefing page, and answers `GET /health`. `railway.json` sets the start command to `python -m web` and the health check path to `/health`. The Railway service name is left as it is. With no environment variables, Recorded sample works immediately. Mock model and Live model start NeMo Gym against virtualenvs that the image build already installed, for both `vllm_model` and `openai_model`. Live model turns on only when the variables below are set on the service.
 
-Recorded sample does not start Ray. If Gym stops printing before it is ready, or it is not ready within three minutes when the virtualenvs are present, the page shows the error and the log tail instead of spinning. A second click while a run is going attaches to that run.
+Recorded sample does not start Ray. Gym and Ray write to the container stdout, prefixed `[gym]`, and the full text is kept in the run log. The page and `GET /api/runs/{id}` show the last 200 lines under Show technical details. Ray starts with the dashboard off, two CPUs at most, a 200 MB object store, and the store files on `/tmp` rather than `/dev/shm`, so a 64 MB `/dev/shm` is enough. If Gym stops printing before it is ready, or it is not ready within three minutes when the virtualenvs are present, the page shows the error and that log instead of spinning. A second click while a run is going attaches to that run.
 
 Give the service at least 2 GB of memory before you use Mock model or Live model. Ray starts with those modes. If Ray cannot stay up, the page says so and Recorded sample still loads.
 
@@ -295,6 +295,6 @@ A live run with your key writes `results/` and does not overwrite `sample_run/`.
 - Temperature defaults to 0. Some endpoints reject that. `gpt-4.1-mini` accepts 0. Set `DEMO_TEMPERATURE` in `.env` if yours does not.
 - Rewards grade the filed triage, not the prose of the employee message. The grader accepts a different capitalization and a different action order. It does not accept a different code.
 - The briefing page and `./run_demo.sh` both collect through port 11000. Run one of them at a time.
-- Mock model and Live model start Ray inside the same machine as the page. The container limits Ray's object store so a modest service can boot. If Ray still cannot start, the page says so. Recorded sample does not start Ray, and it stays available.
+- Mock model and Live model start Ray inside the same machine as the page. The object store is 200 MB on `/tmp`, the dashboard is off, and Ray is limited to two CPUs. The container stdout carries the Gym log. Recorded sample does not start Ray, and it stays available.
 - The image ships the `gym` command, the recorded sample, and the per-server virtualenvs for `vllm_model` and `openai_model`. A fresh container does not need network access to install them.
 - Live model reads `POLICY_API_KEY` from the server environment. The page has no field for a key.

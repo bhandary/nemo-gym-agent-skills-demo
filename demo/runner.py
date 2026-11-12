@@ -10,6 +10,7 @@ import os
 import signal
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Any, Callable, Mapping
@@ -35,6 +36,7 @@ MOCK_URL = f"http://127.0.0.1:{MOCK_PORT}/v1/models"
 READY_WITH_VENVS_SECONDS = 180
 READY_WITHOUT_VENVS_SECONDS = 300
 LOG_STALL_SECONDS = 90
+LOG_TAIL_LINES = 200
 
 VARIANTS = tuple(
     (item["id"], f"Score the tickets: {item['label']}", [f"+skills.path={item['path']}"] if item["path"] else [])
@@ -151,12 +153,15 @@ def _endpoint_answers(url: str, timeout: float = 5.0) -> bool:
         return False
 
 
-def _tail(path: Path, limit: int = 40) -> str:
+def clip_log(text: str, limit: int = LOG_TAIL_LINES) -> str:
+    kept = [line for line in (text or "").splitlines() if line.strip()]
+    return "\n".join(kept[-limit:])
+
+
+def _tail(path: Path, limit: int = LOG_TAIL_LINES) -> str:
     if not path.is_file():
         return ""
-    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-    kept = [line for line in lines if line.strip()]
-    return "\n".join(kept[-limit:])
+    return clip_log(path.read_text(encoding="utf-8", errors="replace"), limit)
 
 
 def _scrub(text: str, secrets: list[str]) -> str:
@@ -185,14 +190,98 @@ def _child_env(root: Path, policy: Mapping[str, str]) -> dict[str, str]:
     env["NEMO_GYM_EXTRA_ROOTS"] = str(root)
     env["PYTHONUNBUFFERED"] = "1"
     env["RAY_AUTH_MODE"] = "disabled"
+    env["RAY_OBJECT_STORE_ALLOW_SLOW_STORAGE"] = "1"
+    env["RAY_LOG_TO_STDERR"] = "1"
     env["RAY_DEFAULT_OBJECT_STORE_MAX_MEMORY_BYTES"] = os.environ.get(
-        "RAY_DEFAULT_OBJECT_STORE_MAX_MEMORY_BYTES", "134217728"
+        "RAY_DEFAULT_OBJECT_STORE_MAX_MEMORY_BYTES", "209715200"
     )
     env["RAY_DEFAULT_OBJECT_STORE_MEMORY_PROPORTION"] = os.environ.get(
         "RAY_DEFAULT_OBJECT_STORE_MEMORY_PROPORTION", "0.08"
     )
     env.setdefault("RAY_DISABLE_DOCKER_CPU_WARNING", "1")
+    pythonpath = env.get("PYTHONPATH", "")
+    root_entry = str(root)
+    entries = [entry for entry in pythonpath.split(os.pathsep) if entry]
+    if root_entry not in entries:
+        entries.insert(0, root_entry)
+    env["PYTHONPATH"] = os.pathsep.join(entries)
     return env
+
+
+def gym_command(root: Path) -> list[str]:
+    """Run the Gym CLI through the wrapper that pins Ray before the cluster starts."""
+    gym_bin = gym_on_path(root)
+    if not gym_bin:
+        raise DemoRunError(gym_available(root)[1])
+    python = Path(gym_bin).resolve().parent / "python"
+    if not python.is_file():
+        python = Path(sys.executable)
+    return [str(python), "-m", "demo.gym_main"]
+
+
+def _pump_output(
+    stream,
+    logs: list[Path],
+    prefix: str,
+    secrets: list[str],
+) -> None:
+    """Copy a process stream into the full log files and the container stdout."""
+    handles = [path.open("a", encoding="utf-8", errors="replace") for path in logs]
+    try:
+        while True:
+            chunk = stream.readline()
+            if not chunk:
+                break
+            text = _scrub(chunk.decode("utf-8", errors="replace"), secrets)
+            for handle in handles:
+                handle.write(text)
+                handle.flush()
+            sys.stdout.write(prefix + text)
+            sys.stdout.flush()
+    finally:
+        for handle in handles:
+            handle.close()
+        stream.close()
+
+
+def _popen_logged(
+    command: list[str],
+    *,
+    cwd: Path,
+    env: dict[str, str],
+    logs: list[Path],
+    prefix: str,
+    secrets: list[str],
+) -> subprocess.Popen:
+    for path in logs:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
+    process = subprocess.Popen(
+        command,
+        cwd=cwd,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+    assert process.stdout is not None
+    thread = threading.Thread(
+        target=_pump_output,
+        args=(process.stdout, logs, prefix, secrets),
+        name=f"log-{prefix.strip()}",
+        daemon=True,
+    )
+    thread.start()
+    process._log_thread = thread  # type: ignore[attr-defined]
+    return process
+
+
+def _wait_logged(process: subprocess.Popen) -> int:
+    code = process.wait()
+    thread = getattr(process, "_log_thread", None)
+    if thread is not None:
+        thread.join(timeout=5)
+    return code
 
 
 def venvs_ready(root: Path, model_type: str) -> bool:
@@ -262,9 +351,7 @@ def execute_gym_run(
             "(a terminal ./run_demo.sh, or another briefing run) and try again. "
             "Recorded sample does not need those servers."
         )
-    gym_bin = gym_on_path(root)
-    if not gym_bin:
-        raise DemoRunError(gym_available(root)[1])
+    gym_cmd = gym_command(root)
 
     results = root / "results" / "ui" / run_id
     results.mkdir(parents=True, exist_ok=True)
@@ -292,21 +379,22 @@ def execute_gym_run(
                 )
             on_step("model", "running", "Starting mock-it-lead.")
             mock_log = results / "mock.log"
-            with mock_log.open("w", encoding="utf-8") as handle:
-                mock = subprocess.Popen(
-                    [sys.executable, "-m", "demo.mock_model"],
-                    cwd=root,
-                    env=_child_env(root, policy),
-                    stdout=handle,
-                    stderr=subprocess.STDOUT,
-                    start_new_session=True,
-                )
+            run_log = results / "run.log"
+            mock = _popen_logged(
+                [sys.executable, "-m", "demo.mock_model"],
+                cwd=root,
+                env=_child_env(root, policy),
+                logs=[mock_log, run_log],
+                prefix="[mock] ",
+                secrets=secrets,
+            )
             mock_pid = mock.pid
             if on_spawn:
                 on_spawn(mock_pid)
             deadline = time.monotonic() + 20
             while time.monotonic() < deadline:
                 if mock.poll() is not None:
+                    _wait_logged(mock)
                     raise DemoRunError(
                         "The mock model exited before it could answer.",
                         _scrub(_tail(mock_log), secrets),
@@ -341,23 +429,23 @@ def execute_gym_run(
         installed = venvs_ready(root, model_type)
         ready_seconds = READY_WITH_VENVS_SECONDS if installed else READY_WITHOUT_VENVS_SECONDS
         on_step("gym", "running", "Starting the head server, the desk, and the verifier.")
-        with servers_log.open("w", encoding="utf-8") as handle:
-            gym = subprocess.Popen(
-                [
-                    gym_bin,
-                    "env",
-                    "start",
-                    "--resources-server",
-                    "ticketnow_desk",
-                    "--model-type",
-                    model_type,
-                ],
-                cwd=root,
-                env=_child_env(root, policy),
-                stdout=handle,
-                stderr=subprocess.STDOUT,
-                start_new_session=True,
-            )
+        run_log = results / "run.log"
+        gym = _popen_logged(
+            [
+                *gym_cmd,
+                "env",
+                "start",
+                "--resources-server",
+                "ticketnow_desk",
+                "--model-type",
+                model_type,
+            ],
+            cwd=root,
+            env=_child_env(root, policy),
+            logs=[servers_log, run_log],
+            prefix="[gym] ",
+            secrets=secrets,
+        )
         gym_pid = gym.pid
         if on_spawn:
             on_spawn(gym_pid)
@@ -367,19 +455,20 @@ def execute_gym_run(
         last_growth = time.monotonic()
         while time.monotonic() < deadline:
             if gym.poll() is not None:
-                tail = _scrub(_tail(servers_log, limit=80), secrets)
+                _wait_logged(gym)
+                tail = _scrub(_tail(run_log), secrets)
                 if on_log:
                     on_log(tail)
                 raise DemoRunError(_gym_failed_message(tail), tail)
             if _http_ok(READY_URL, timeout=3):
                 break
-            size = servers_log.stat().st_size if servers_log.is_file() else 0
+            size = run_log.stat().st_size if run_log.is_file() else 0
             now = time.monotonic()
             if size != last_size:
                 last_size = size
                 last_growth = now
             elif installed and now - last_growth >= LOG_STALL_SECONDS:
-                tail = _scrub(_tail(servers_log, limit=80), secrets)
+                tail = _scrub(_tail(run_log), secrets)
                 if on_log:
                     on_log(tail)
                 raise DemoRunError(
@@ -388,10 +477,10 @@ def execute_gym_run(
                     tail,
                 )
             if now >= next_detail:
-                tail = _scrub(_tail(servers_log, limit=80), secrets)
+                tail = _scrub(_tail(run_log), secrets)
                 if on_log:
                     on_log(tail)
-                line = _scrub(_last_line(servers_log), secrets)
+                line = _scrub(_last_line(run_log), secrets)
                 if installed:
                     detail = "Waiting until NeMo Gym reports ready. The server environments are already installed."
                 else:
@@ -405,7 +494,7 @@ def execute_gym_run(
                 next_detail = now + 2
             time.sleep(1)
         else:
-            tail = _scrub(_tail(servers_log, limit=80), secrets)
+            tail = _scrub(_tail(run_log), secrets)
             if on_log:
                 on_log(tail)
             raise DemoRunError(
@@ -421,7 +510,7 @@ def execute_gym_run(
             on_step(key, "running", f"NeMo Gym is collecting {len(CASES)} rollouts for {item['label']}.")
             log_path = results / f"{key}.log"
             command = [
-                gym_bin,
+                *gym_cmd,
                 "eval",
                 "run",
                 "--no-serve",
@@ -439,16 +528,15 @@ def execute_gym_run(
                 temperature,
                 *extra,
             ]
-            with log_path.open("w", encoding="utf-8") as handle:
-                completed = subprocess.run(
-                    command,
-                    cwd=root,
-                    env=_child_env(root, policy),
-                    stdout=handle,
-                    stderr=subprocess.STDOUT,
-                    check=False,
-                )
-            if completed.returncode != 0:
+            completed = _popen_logged(
+                command,
+                cwd=root,
+                env=_child_env(root, policy),
+                logs=[log_path, run_log],
+                prefix="[gym] ",
+                secrets=secrets,
+            )
+            if _wait_logged(completed) != 0:
                 tail = _scrub(_tail(log_path), secrets)
                 raise DemoRunError(f"Scoring {key.replace('_', ' ')} failed.", tail)
             on_step(key, "done", f"{len(CASES)} rollouts scored.")
@@ -477,6 +565,8 @@ def execute_gym_run(
             variants=chosen,
         )
         on_step("report", "done", "Comparison ready.")
+        if on_log:
+            on_log(_scrub(_tail(run_log), secrets))
         return view
     finally:
         _kill_process_group(gym_pid)
@@ -487,8 +577,8 @@ def _ray_hint(tail: str) -> str:
     lowered = tail.lower()
     if any(token in lowered for token in ("ray", "shm", "object store", "memory")):
         return (
-            "Ray did not stay up in this container. Give the service more memory, "
-            "or keep presenting from Recorded sample, which does not start Ray."
+            "Ray did not become ready. The log below is what Gym printed. "
+            "Recorded sample does not start Ray."
         )
     return "The server log is below. Recorded sample does not start NeMo Gym."
 

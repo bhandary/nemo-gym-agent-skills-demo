@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from demo.present import load_sample_view
-from demo.runner import DemoRunError, execute_gym_run, gym_available, run_steps
+from demo.runner import LOG_TAIL_LINES, DemoRunError, clip_log, execute_gym_run, gym_available, run_steps
 from demo.settings import model_settings
 from demo.skill_sets import UnknownSkill, run_plan
 
@@ -173,7 +173,7 @@ class RunManager:
 
     def _log(self, state: RunState, tail: str) -> None:
         with self._lock:
-            state.log_tail = (tail or "")[-4000:]
+            state.log_tail = clip_log(tail or "", LOG_TAIL_LINES)
 
     def _mark(self, state: RunState, step_id: str, step_state: str, detail: str) -> None:
         with self._lock:
@@ -199,7 +199,7 @@ class RunManager:
                 )
             state.status = "failed"
             state.error = message
-            state.log_tail = (log_tail or "")[-4000:]
+            state.log_tail = clip_log(log_tail or "", LOG_TAIL_LINES)
             state.finished_at = _now()
             for step in state.steps:
                 if step["state"] == "running":

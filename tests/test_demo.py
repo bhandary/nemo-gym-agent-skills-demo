@@ -13,7 +13,15 @@ import pytest
 
 from demo.mock_model import MODEL_NAME, Handler, choose_action, decide_from_skill_text
 from demo.report import TRACE_CASE, write_report
-from demo.runner import LOG_STALL_SECONDS, READY_WITHOUT_VENVS_SECONDS, READY_WITH_VENVS_SECONDS
+from demo.ray_bootstrap import OBJECT_STORE_BYTES, constrain_ray_init, cpu_budget
+from demo.runner import (
+    LOG_STALL_SECONDS,
+    LOG_TAIL_LINES,
+    READY_WITHOUT_VENVS_SECONDS,
+    READY_WITH_VENVS_SECONDS,
+    clip_log,
+    gym_command,
+)
 from demo.skill_sets import (
     SKILLS,
     SHARED_SKILLS,
@@ -309,6 +317,16 @@ def test_a_run_can_score_every_leave_one_out(tmp_path: Path) -> None:
     custom = selection_config(["security-first-response", "priority-matrix"])
     assert custom["id"] == "selected"
     assert custom["path"] == "skills/selected"
+    assert gym_command(ROOT)[-2:] == ["-m", "demo.gym_main"]
+    fresh = constrain_ray_init({})
+    assert fresh["include_dashboard"] is False
+    assert fresh["num_cpus"] == cpu_budget()
+    assert 1 <= fresh["num_cpus"] <= 2
+    assert fresh["object_store_memory"] == OBJECT_STORE_BYTES
+    assert fresh["_plasma_directory"] == "/tmp"
+    assert fresh["_temp_dir"] == "/tmp/ray"
+    assert constrain_ray_init({"address": "127.0.0.1:1"}) == {"address": "127.0.0.1:1"}
+    assert len(clip_log("\n".join(f"line {i}" for i in range(250))).splitlines()) == LOG_TAIL_LINES
     assert READY_WITH_VENVS_SECONDS == 180
     assert READY_WITHOUT_VENVS_SECONDS == 300
     assert LOG_STALL_SECONDS == 90

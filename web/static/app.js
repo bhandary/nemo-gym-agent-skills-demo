@@ -269,12 +269,14 @@ function renderProgress() {
     item.append(dot, copy);
     list.append(item);
   }
+  const details = $("progress-log-details");
   const log = $("progress-log");
-  if (run.log_tail && run.status === "running") {
-    log.hidden = false;
+  if (run.log_tail) {
+    details.hidden = false;
+    details.open = run.status === "running";
     log.textContent = run.log_tail;
   } else {
-    log.hidden = true;
+    details.hidden = true;
     log.textContent = "";
   }
 }
@@ -310,7 +312,7 @@ function renderAlert() {
   if (run.log_tail) {
     const details = document.createElement("details");
     details.className = "log-tail";
-    details.append(el("summary", "", "What NeMo Gym printed"));
+    details.append(el("summary", "", "Show technical details"));
     details.append(el("pre", "", run.log_tail));
     box.append(details);
   }
@@ -733,6 +735,11 @@ function renderTrace() {
       list.append(item);
     });
     technical.append(list);
+  }
+  if (state.run && state.run.log_tail) {
+    technical.append(el("h4", "", "NeMo Gym log"));
+    technical.append(el("p", "skills-meta", "The last lines Gym printed for this run."));
+    technical.append(el("pre", "", state.run.log_tail));
   }
   card.append(technical);
   host.append(card);

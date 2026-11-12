@@ -38,7 +38,10 @@
       <section class="progress" id="progress" hidden aria-live="polite">
         <h2>This run</h2>
         <ol id="progress-list"></ol>
-        <pre class="run-log" id="progress-log" hidden></pre>
+        <details class="technical" id="progress-log-details" hidden>
+          <summary>Show technical details</summary>
+          <pre class="run-log" id="progress-log"></pre>
+        </details>
       </section>
       <section class="alert" id="alert" hidden role="alert"></section>
       <section class="picker" id="picker" aria-label="Which playbooks to score"></section>
