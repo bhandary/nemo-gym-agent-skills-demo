@@ -4,6 +4,8 @@ cache/
 env.yaml
 .env
 results/
+.verify-evidence/
+.verify-cache/
 skills/selected/
 skills/without_security_first_response/
 skills/without_ticket_classification/
